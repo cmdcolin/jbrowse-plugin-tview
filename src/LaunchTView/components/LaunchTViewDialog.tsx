@@ -7,6 +7,7 @@ import {
   Feature,
   getContainingView,
   getSession,
+  max,
 } from '@jbrowse/core/util'
 import { LinearGenomeViewModel } from '@jbrowse/plugin-linear-genome-view'
 import { getRpcSessionId } from '@jbrowse/core/util/tracks'
@@ -15,6 +16,9 @@ import { getConf } from '@jbrowse/core/configuration'
 interface Mismatch {
   type: string
   length: number
+  cliplen?: number
+  altbase?: string
+  qual?: number
   start: number
   base: string
 }
@@ -55,23 +59,29 @@ function tview(
   let soffset = 0
   let roffset = 0
 
+  const insLens = [...maxInsForPos.entries()].filter(f => !!f[1])
   let rendered = ''
-  for (let i = 0; i < start - regionStart - 1; i++) {
-    rendered += ' '
+  let idx = 0
+  for (let i = regionStart + 1; i < start; i++) {
+    const currInsTracker = insLens[idx]
+    if (currInsTracker && i === currInsTracker[0]) {
+      rendered += '.'.repeat(currInsTracker[1])
+      idx++
+    }
+    rendered += '.'
   }
   let insAtPos = 0
   for (let i = 0; i < cigarOps.length; i += 2) {
     const len = +cigarOps[i]!
     const op = cigarOps[i + 1]!
 
-    // eslint-disable-next-line
     if (op === 'S' || op === 'I') {
       soffset += len
       const referencePos = start + roffset
       const z = maxInsForPos.get(referencePos) ?? 0
       const z2 = Math.max(len, z) - len
       for (let m = 0; m < len; m++) {
-        if (roffset > regionStart) {
+        if (referencePos > regionStart) {
           rendered += seq[soffset + m]
         }
       }
@@ -113,6 +123,101 @@ function tview(
   return rendered
 }
 
+function cigarToMismatches(
+  ops: string[],
+  seq?: string,
+  ref?: string,
+  qual?: Buffer,
+) {
+  let roffset = 0 // reference offset
+  let soffset = 0 // seq offset
+  const mismatches: Mismatch[] = []
+  const hasRefAndSeq = ref && seq
+  for (let i = 0; i < ops.length; i += 2) {
+    const len = +ops[i]!
+    const op = ops[i + 1]!
+
+    if (op === 'M' || op === '=' || op === 'E') {
+      if (hasRefAndSeq) {
+        for (let j = 0; j < len; j++) {
+          if (
+            // @ts-ignore in the full yarn build of the repo, this says that object is possibly undefined for some reason, ignored
+            seq[soffset + j].toUpperCase() !== ref[roffset + j].toUpperCase()
+          ) {
+            mismatches.push({
+              start: roffset + j,
+              type: 'mismatch',
+              base: seq[soffset + j]!,
+              altbase: ref[roffset + j]!,
+              length: 1,
+            })
+          }
+        }
+      }
+      soffset += len
+    }
+    if (op === 'I') {
+      mismatches.push({
+        start: roffset,
+        type: 'insertion',
+        base: `${len}`,
+        length: 0,
+      })
+      soffset += len
+    } else if (op === 'D') {
+      mismatches.push({
+        start: roffset,
+        type: 'deletion',
+        base: '*',
+        length: len,
+      })
+    } else if (op === 'N') {
+      mismatches.push({
+        start: roffset,
+        type: 'skip',
+        base: 'N',
+        length: len,
+      })
+    } else if (op === 'X') {
+      const r = seq?.slice(soffset, soffset + len) || []
+      const q = qual?.subarray(soffset, soffset + len) || []
+
+      for (let j = 0; j < len; j++) {
+        mismatches.push({
+          start: roffset + j,
+          type: 'mismatch',
+          base: r[j]!,
+          qual: q[j]!,
+          length: 1,
+        })
+      }
+      soffset += len
+    } else if (op === 'H') {
+      mismatches.push({
+        start: roffset,
+        type: 'hardclip',
+        base: `H${len}`,
+        cliplen: len,
+        length: 1,
+      })
+    } else if (op === 'S') {
+      mismatches.push({
+        start: roffset,
+        type: 'softclip',
+        base: `S${len}`,
+        cliplen: len,
+        length: 1,
+      })
+      soffset += len
+    }
+
+    if (op !== 'I' && op !== 'S' && op !== 'H') {
+      roffset += len
+    }
+  }
+  return mismatches
+}
+
 export default function LaunchTViewDialog({
   handleClose,
   model,
@@ -122,7 +227,7 @@ export default function LaunchTViewDialog({
 }) {
   const view = getContainingView(model) as LinearGenomeViewModel
   const session = getSession(model)
-  const [msa, setMsa] = useState<[string, string][]>()
+  const [msa, setMsa] = useState<string>()
   const { rpcManager } = session
   const b0 = view.dynamicBlocks.contentBlocks[0]
   const [error, setError] = useState<unknown>()
@@ -136,22 +241,27 @@ export default function LaunchTViewDialog({
         if (!view.initialized || !b0) {
           return
         }
+        const b0p = {
+          ...b0,
+          start: Math.floor(b0.start),
+          end: Math.floor(b0.end),
+        }
         const track = view.tracks[0]
         const adapterConfig = getConf(track, 'adapter')
         const sessionId = getRpcSessionId(track)
         const feats2 = (await rpcManager.call(sessionId, 'CoreGetFeatures', {
           adapterConfig,
           sessionId,
-          regions: [b0],
+          regions: [b0p],
         })) as Feature[]
-        const feats = feats2.filter(f => !f.get('seq'))
-        const { start: s, end: e } = b0
+        const feats = feats2.filter(f => !!f.get('seq'))
+        const { start: s, end: e } = b0p
 
         const sets = feats.map(
           f =>
             new Map(
-              (f.get('mismatches') as Mismatch[] | undefined)
-                ?.filter(f => f.type === 'insertion')
+              cigarToMismatches(parseCigar(f.get('CIGAR') as string))
+                .filter(f => f.type === 'insertion')
                 .map(mismatch => [mismatch.start, mismatch]),
             ),
         )
@@ -159,11 +269,15 @@ export default function LaunchTViewDialog({
         for (let i = s; i < e; i++) {
           maxInsForPos.set(i, getMaxInsForPos(sets, feats, i))
         }
+        const r0 = feats.map(
+          f => [f.get('name') as string, tview(f, maxInsForPos, s, e)] as const,
+        )
+        const maxRowLen = max(r0.map(r => r[1].length))
 
         setMsa(
-          feats.map(
-            f => [f.get('name'), tview(f, maxInsForPos, s, e)] as const,
-          ),
+          r0
+            .map(([name, seq]) => `>${name}\n${seq.padEnd(maxRowLen, '.')}\n`)
+            .join('\n'),
         )
       } catch (e) {
         setError(e)
@@ -172,7 +286,6 @@ export default function LaunchTViewDialog({
     })()
   }, [rpcManager, view.initialized, b0, view.tracks])
   const displayName = b0 ? assembleLocString(b0) : 'Unknown'
-
   return (
     <Dialog
       maxWidth="xl"

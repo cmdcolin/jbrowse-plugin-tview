@@ -6,7 +6,6 @@ import { LinearGenomeViewModel } from '@jbrowse/plugin-linear-genome-view'
 import { BaseViewModel } from '@jbrowse/core/pluggableElementTypes'
 
 // locals
-import { genomeToMSA } from './genomeToMSA'
 
 type LGV = LinearGenomeViewModel
 
@@ -81,25 +80,12 @@ export default function stateModelFactory() {
       /**
        * #getter
        */
-      get mouseCol2(): number | undefined {
-        return genomeToMSA({ model: self as JBrowsePluginTViewModel })
-      },
-      /**
-       * #getter
-       */
       get clickCol2() {
         return undefined
       },
     }))
 
     .views(self => ({
-      /**
-       * #getter
-       */
-      get processing() {
-        return !!self.progress
-      },
-
       /**
        * #getter
        */
@@ -151,12 +137,6 @@ export default function stateModelFactory() {
             },
           },
         ]
-      },
-      /**
-       * #getter
-       */
-      get processing() {
-        return !!self.progress
       },
 
       /**

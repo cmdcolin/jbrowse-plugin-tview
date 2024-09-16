@@ -12,7 +12,7 @@ import LaunchTViewDialog from './components/LaunchTViewDialog'
 import { MenuItem } from '@jbrowse/core/ui'
 
 function isDisplay(elt: { name: string }): elt is DisplayType {
-  return elt.name === 'LinearAlignmentsDisplay'
+  return elt.name === 'LinearPileupDisplay'
 }
 
 function extendStateModel(stateModel: IAnyModelType) {
