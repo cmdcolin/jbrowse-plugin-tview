@@ -10,11 +10,7 @@ const TViewPanel = observer(function TViewPanel2({
 }: {
   model: JBrowsePluginTViewModel
 }) {
-  return (
-    <div>
-      <MSAView model={model} />
-    </div>
-  )
+  return <MSAView model={model} />
 })
 
 export default TViewPanel

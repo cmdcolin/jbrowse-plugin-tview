@@ -61,9 +61,9 @@ export default tseslint.config(
           markers: ['/'],
         },
       ],
-
+      'unicorn/no-nested-ternary': 'off',
       'unicorn/no-null': 'off',
-
+      'unicorn/prefer-switch': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',

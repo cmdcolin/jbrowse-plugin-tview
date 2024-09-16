@@ -26,9 +26,11 @@ export interface IRegion {
 export default function stateModelFactory() {
   return types
     .compose(
+      'TView',
       BaseViewModel,
       MSAModelF(),
-      types.model('TView', {
+      types.model({
+        type: types.literal('TView'),
         /**
          * #property
          */
@@ -54,12 +56,6 @@ export default function stateModelFactory() {
         zoomToBaseLevel: false,
       }),
     )
-
-    .volatile(() => ({
-      progress: '',
-      error: undefined as unknown,
-    }))
-
     .views(self => ({
       /**
        * #method
@@ -222,7 +218,5 @@ export default function stateModelFactory() {
     }))
 }
 
-export type JBrowsePluginTViewStateModel = ReturnType<
-  typeof stateModelFactory
->
+export type JBrowsePluginTViewStateModel = ReturnType<typeof stateModelFactory>
 export type JBrowsePluginTViewModel = Instance<JBrowsePluginTViewStateModel>
