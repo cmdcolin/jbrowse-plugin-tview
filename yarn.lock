@@ -3073,9 +3073,9 @@ react-is@^18.3.1:
   integrity sha512-/LLMVyas0ljjAtoYiPqYiL8VWXzUUdThrmU5+n20DZv+a+ClRoevUzw5JxU+Ieh5/c87ytoTBV9G1FiKfNJdmg==
 
 react-msaview@^4.0.0:
-  version "4.0.1"
-  resolved "https://registry.yarnpkg.com/react-msaview/-/react-msaview-4.0.1.tgz#5d27e1b5a978d08aab44846fa1835d39533dfc65"
-  integrity sha512-SAJPInBreUWLI6PZ/0ayFDtndtSMMWKBRPyl9/Wm3tLeueJR3L3iIXrr0PiAXm+zR+XBgxjIlKPT81At7TPcOg==
+  version "4.0.2"
+  resolved "https://registry.yarnpkg.com/react-msaview/-/react-msaview-4.0.2.tgz#f49cef01b51861967c5f08702f486d5e5332ce3c"
+  integrity sha512-GAnUbuHhorbZRpUW2lrElnvJw9t3OJ7xMtWq7IZV6IQCQ+84j2EuXCnbCPixnuuTG0qtecncWReiXNjBH482Ow==
   dependencies:
     "@mui/icons-material" "^6.0.2"
     "@mui/material" "^6.0.2"

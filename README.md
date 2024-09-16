@@ -9,6 +9,9 @@ pileups in a `samtools tview` style interface
 
 TView plugin running in JBrowse 2
 
-## Demo
+## Usage
 
-https://jbrowse.org/code/jb2/main/index.html?config=https://unpkg.com/jbrowse-plugin-tview/dist/config.json&session=share-BVmmEYAoAv&password=SuQaN
+1. Install plugin
+2. Click the track menu (vertical ...) on alignments track
+3. Navigate to "Pileup settings" submenu
+4. Then click "Launch tview for visible region"

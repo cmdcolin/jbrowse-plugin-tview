@@ -315,6 +315,9 @@ export default function LaunchTViewDialog({
             session.addView('TView', {
               type: 'TView',
               displayName,
+              colWidth: 10,
+              rowHeight: 12,
+              colorScheme: 'jbrowse_dna',
               data: {
                 msa,
               },
