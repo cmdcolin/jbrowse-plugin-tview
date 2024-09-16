@@ -2,6 +2,10 @@ import * as esbuild from 'esbuild'
 import { globalExternals } from '@fal-works/esbuild-plugin-global-externals'
 import JbrowseGlobals from '@jbrowse/core/ReExports/list.js'
 import prettyBytes from 'pretty-bytes'
+import express from 'express'
+import serveStatic from 'serve-static'
+import cors from 'cors'
+import request from 'request'
 
 function createGlobalMap(jbrowseGlobals) {
   const globalMap = {}
@@ -86,13 +90,21 @@ if (process.env.NODE_ENV === 'production') {
       },
     ],
   })
-  let { host, port } = await ctx.serve({
+  await ctx.serve({
     servedir: '.',
-    port: 9000,
-    host: 'localhost',
+    port: 8999,
   })
-  const formattedHost = host === '127.0.0.1' ? 'localhost' : host
-  console.log(`Serving at http://${formattedHost}:${port}`)
+  const app = express()
+  app.get('/dist/out.js', function (req, res) {
+    var newurl = 'http://localhost:8999/dist/out.js'
+    request(newurl).pipe(res)
+  })
+  app.use(cors({}))
+  app.use(serveStatic('public'))
+
+  app.listen(9000, () => {
+    console.log(`Example app listening at http://localhost:9000`)
+  })
 
   await ctx.watch()
   console.log('Watching files...')
