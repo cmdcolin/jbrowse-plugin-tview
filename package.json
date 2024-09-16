@@ -1,0 +1,75 @@
+{
+  "version": "2.0.4",
+  "license": "MIT",
+  "name": "jbrowse-plugin-tview",
+  "keywords": [
+    "jbrowse",
+    "jbrowse2"
+  ],
+  "main": "dist/index.js",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "config": {
+    "port": 9000,
+    "browse": {
+      "port": 8999
+    },
+    "jbrowse": {
+      "plugin": {
+        "name": "TView"
+      }
+    }
+  },
+  "scripts": {
+    "clean": "rimraf dist",
+    "start": "node esbuild.mjs",
+    "format": "prettier --write .",
+    "build": "tsc && NODE_ENV=production node esbuild.mjs",
+    "prebuild": "npm run clean",
+    "lint": "eslint --report-unused-disable-directives --max-warnings 0",
+    "prepack": "npm run build",
+    "postversion": "git push --follow-tags"
+  },
+  "jbrowse-plugin": {
+    "name": "TView"
+  },
+  "dependencies": {
+    "pako": "^2.1.0",
+    "react-msaview": "^4.0.0"
+  },
+  "devDependencies": {
+    "@emotion/react": "^11.10.4",
+    "@fal-works/esbuild-plugin-global-externals": "^2.1.2",
+    "@jbrowse/core": "^2.10.1",
+    "@jbrowse/plugin-linear-genome-view": "^2.7.0",
+    "@mui/icons-material": "^6.1.0",
+    "@mui/material": "^6.1.0",
+    "@mui/system": "^6.1.0",
+    "@mui/x-data-grid": "^7.13.0",
+    "@types/node": "^20.8.6",
+    "@types/pako": "^2.0.1",
+    "@types/react": "^18.2.28",
+    "@typescript-eslint/eslint-plugin": "^8.0.1",
+    "@typescript-eslint/parser": "^8.0.1",
+    "esbuild": "^0.23.0",
+    "eslint": "^9.0.0",
+    "eslint-plugin-react": "^7.20.3",
+    "eslint-plugin-react-hooks": "next",
+    "eslint-plugin-react-refresh": "^0.4.9",
+    "eslint-plugin-unicorn": "^55.0.0",
+    "mobx": "^6.10.2",
+    "mobx-react": "^9.0.1",
+    "mobx-state-tree": "^5.3.0",
+    "prettier": "^3.0.3",
+    "pretty-bytes": "^6.1.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "rimraf": "^6.0.0",
+    "rxjs": "^7.8.1",
+    "tss-react": "^4.9.2",
+    "typescript": "^5.2.2",
+    "typescript-eslint": "^8.1.0"
+  }
+}
