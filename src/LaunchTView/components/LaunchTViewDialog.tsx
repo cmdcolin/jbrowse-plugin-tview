@@ -16,14 +16,10 @@ import { getConf } from '@jbrowse/core/configuration'
 interface Mismatch {
   type: string
   length: number
-  cliplen?: number
-  altbase?: string
-  qual?: number
   start: number
-  base: string
 }
 function getMaxInsForPos(
-  sets: Map<number, Mismatch>[],
+  insertionSets: Map<number, Mismatch>[],
   features: Feature[],
   pos: number,
 ) {
@@ -31,11 +27,11 @@ function getMaxInsForPos(
   // eslint-disable-next-line unicorn/no-for-loop
   for (let i = 0; i < features.length; i++) {
     const feature = features[i]!
-    const set = sets[i]!
+    const set = insertionSets[i]!
     const s = feature.get('start')
     const ins = set.get(pos - s)
     if (ins) {
-      maxIns = Math.max(+ins.base, maxIns)
+      maxIns = Math.max(+ins.length, maxIns)
     }
   }
   return maxIns
@@ -74,9 +70,9 @@ function tview(
   for (let i = 0; i < cigarOps.length; i += 2) {
     const len = +cigarOps[i]!
     const op = cigarOps[i + 1]!
-
-    if (op === 'S' || op === 'I') {
+    if (op === 'S') {
       soffset += len
+    } else if (op === 'I') {
       const referencePos = start + roffset
       const z = maxInsForPos.get(referencePos) ?? 0
       const z2 = Math.max(len, z) - len
@@ -123,92 +119,20 @@ function tview(
   return rendered
 }
 
-function cigarToMismatches(
-  ops: string[],
-  seq?: string,
-  ref?: string,
-  qual?: Buffer,
-) {
+function getInsertions(cigar: string) {
+  const ops = parseCigar(cigar)
   let roffset = 0 // reference offset
-  let soffset = 0 // seq offset
   const mismatches: Mismatch[] = []
-  const hasRefAndSeq = ref && seq
   for (let i = 0; i < ops.length; i += 2) {
     const len = +ops[i]!
     const op = ops[i + 1]!
 
-    if (op === 'M' || op === '=' || op === 'E') {
-      if (hasRefAndSeq) {
-        for (let j = 0; j < len; j++) {
-          if (
-            // @ts-ignore in the full yarn build of the repo, this says that object is possibly undefined for some reason, ignored
-            seq[soffset + j].toUpperCase() !== ref[roffset + j].toUpperCase()
-          ) {
-            mismatches.push({
-              start: roffset + j,
-              type: 'mismatch',
-              base: seq[soffset + j]!,
-              altbase: ref[roffset + j]!,
-              length: 1,
-            })
-          }
-        }
-      }
-      soffset += len
-    }
     if (op === 'I') {
       mismatches.push({
         start: roffset,
         type: 'insertion',
-        base: `${len}`,
-        length: 0,
-      })
-      soffset += len
-    } else if (op === 'D') {
-      mismatches.push({
-        start: roffset,
-        type: 'deletion',
-        base: '*',
         length: len,
       })
-    } else if (op === 'N') {
-      mismatches.push({
-        start: roffset,
-        type: 'skip',
-        base: 'N',
-        length: len,
-      })
-    } else if (op === 'X') {
-      const r = seq?.slice(soffset, soffset + len) || []
-      const q = qual?.subarray(soffset, soffset + len) || []
-
-      for (let j = 0; j < len; j++) {
-        mismatches.push({
-          start: roffset + j,
-          type: 'mismatch',
-          base: r[j]!,
-          qual: q[j]!,
-          length: 1,
-        })
-      }
-      soffset += len
-    } else if (op === 'H') {
-      mismatches.push({
-        start: roffset,
-        type: 'hardclip',
-        base: `H${len}`,
-        cliplen: len,
-        length: 1,
-      })
-    } else if (op === 'S') {
-      mismatches.push({
-        start: roffset,
-        type: 'softclip',
-        base: `S${len}`,
-        cliplen: len,
-        length: 1,
-      })
-      soffset += len
     }
 
     if (op !== 'I' && op !== 'S' && op !== 'H') {
@@ -241,14 +165,14 @@ export default function LaunchTViewDialog({
         if (!view.initialized || !b0) {
           return
         }
+        setError(undefined)
         const b0p = {
           ...b0,
           start: Math.floor(b0.start),
           end: Math.floor(b0.end),
         }
-        const track = view.tracks[0]
-        const adapterConfig = getConf(track, 'adapter')
-        const sessionId = getRpcSessionId(track)
+        const adapterConfig = getConf(model, 'adapter')
+        const sessionId = getRpcSessionId(model)
         const feats2 = (await rpcManager.call(sessionId, 'CoreGetFeatures', {
           adapterConfig,
           sessionId,
@@ -257,17 +181,12 @@ export default function LaunchTViewDialog({
         const feats = feats2.filter(f => !!f.get('seq'))
         const { start: s, end: e } = b0p
 
-        const sets = feats.map(
-          f =>
-            new Map(
-              cigarToMismatches(parseCigar(f.get('CIGAR') as string))
-                .filter(f => f.type === 'insertion')
-                .map(mismatch => [mismatch.start, mismatch]),
-            ),
+        const insertionSets = feats.map(
+          f => new Map(getInsertions(f.get('CIGAR')).map(m => [m.start, m])),
         )
         const maxInsForPos = new Map<number, number>()
         for (let i = s; i < e; i++) {
-          maxInsForPos.set(i, getMaxInsForPos(sets, feats, i))
+          maxInsForPos.set(i, getMaxInsForPos(insertionSets, feats, i))
         }
         const r0 = feats.map(
           f => [f.get('name') as string, tview(f, maxInsForPos, s, e)] as const,
@@ -284,7 +203,7 @@ export default function LaunchTViewDialog({
         console.error(e)
       }
     })()
-  }, [rpcManager, view.initialized, b0, view.tracks])
+  }, [rpcManager, view.initialized, b0, model, view.tracks])
   const displayName = b0 ? assembleLocString(b0) : 'Unknown'
   return (
     <Dialog
@@ -317,7 +236,8 @@ export default function LaunchTViewDialog({
               displayName,
               colWidth: 10,
               rowHeight: 12,
-              colorScheme: 'jbrowse_dna',
+              labelsAlignRight: true,
+              colorSchemeName: 'jbrowse_dna',
               data: {
                 msa,
               },

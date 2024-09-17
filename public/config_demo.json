@@ -1,14 +1,5 @@
 {
-  "configuration": {},
   "plugins": [
-    {
-      "name": "Biothings",
-      "url": "https://unpkg.com/jbrowse-plugin-biothings@^1/dist/jbrowse-plugin-biothings.umd.production.min.js"
-    },
-    {
-      "name": "UCSC",
-      "url": "https://unpkg.com/jbrowse-plugin-ucsc@^1/dist/jbrowse-plugin-ucsc.umd.production.min.js"
-    },
     {
       "name": "TView",
       "url": "http://localhost:9000/dist/out.js"
@@ -196,9 +187,67 @@
       }
     }
   ],
-  "connections": [],
   "defaultSession": {
-    "name": "New Session"
+    "drawerPosition": "right",
+    "drawerWidth": 384,
+    "widgets": {
+      "hierarchicalTrackSelector": {
+        "id": "hierarchicalTrackSelector",
+        "type": "HierarchicalTrackSelectorWidget",
+        "view": "OVvSD4GpJz5xYiHzOCbhQ"
+      }
+    },
+    "activeWidgets": {
+      "hierarchicalTrackSelector": "hierarchicalTrackSelector"
+    },
+    "minimized": false,
+    "id": "_xJ4fiHrNObweSZ6PmHDy",
+    "name": "New session 9/16/2024, 10:52:37 PM",
+    "margin": 0,
+    "views": [
+      {
+        "id": "OVvSD4GpJz5xYiHzOCbhQ",
+        "minimized": false,
+        "type": "LinearGenomeView",
+        "offsetPx": 337166575,
+        "bpPerPx": 0.16521739130434782,
+        "displayedRegions": [
+          {
+            "reversed": false,
+            "refName": "1",
+            "start": 0,
+            "end": 249250621,
+            "assemblyName": "hg19"
+          }
+        ],
+        "tracks": [
+          {
+            "id": "6S2tjOTwS9p_HkvoBb5cK",
+            "type": "AlignmentsTrack",
+            "configuration": "illumina_hg002",
+            "displays": [
+              {
+                "id": "VL45ZflOnyWtJLOayCUAl",
+                "type": "LinearAlignmentsDisplay",
+                "configuration": "illumina_hg002-LinearAlignmentsDisplay"
+              }
+            ]
+          },
+          {
+            "id": "3czkUQX83OvOTEcrWakRi",
+            "type": "AlignmentsTrack",
+            "configuration": "pacbio_hg002",
+            "displays": [
+              {
+                "id": "9rF5aLQ2TdPz9CKJK9OGr",
+                "type": "LinearAlignmentsDisplay",
+                "configuration": "pacbio_hg002-LinearAlignmentsDisplay"
+              }
+            ]
+          }
+        ]
+      }
+    ]
   },
   "aggregateTextSearchAdapters": [
     {

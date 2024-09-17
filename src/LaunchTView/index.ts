@@ -20,13 +20,13 @@ function extendStateModel(stateModel: IAnyModelType) {
     const superTrackMenuItems = self.trackMenuItems
     return {
       trackMenuItems() {
-        const track = getContainingTrack(self)
         return [
           ...superTrackMenuItems(),
           {
             label: 'Launch tview for visible region',
             icon: AddIcon,
             onClick: () => {
+              const track = getContainingTrack(self)
               getSession(track).queueDialog(handleClose => [
                 LaunchTViewDialog,
                 {
