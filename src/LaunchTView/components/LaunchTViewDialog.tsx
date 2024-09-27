@@ -87,6 +87,7 @@ function tview(
         }
       }
       insAtPos = len
+      soffset += len
     } else if (op === 'D' || op === 'N') {
       for (let m = 0; m < len; m++) {
         rendered += '-'
