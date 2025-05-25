@@ -1,17 +1,18 @@
 import React, { useEffect, useState } from 'react'
+
+import { getConf } from '@jbrowse/core/configuration'
 import { Dialog, ErrorMessage } from '@jbrowse/core/ui'
-import { Button, DialogActions, DialogContent } from '@mui/material'
 import {
-  AbstractTrackModel,
   assembleLocString,
-  Feature,
   getContainingView,
   getSession,
   max,
 } from '@jbrowse/core/util'
-import { LinearGenomeViewModel } from '@jbrowse/plugin-linear-genome-view'
 import { getRpcSessionId } from '@jbrowse/core/util/tracks'
-import { getConf } from '@jbrowse/core/configuration'
+import { Button, DialogActions, DialogContent } from '@mui/material'
+
+import type { AbstractTrackModel, Feature } from '@jbrowse/core/util'
+import type { LinearGenomeViewModel } from '@jbrowse/plugin-linear-genome-view'
 
 interface Mismatch {
   type: string
@@ -24,7 +25,7 @@ function getMaxInsForPos(
   pos: number,
 ) {
   let maxIns = 0
-  // eslint-disable-next-line unicorn/no-for-loop
+
   for (let i = 0; i < features.length; i++) {
     const feature = features[i]!
     const set = insertionSets[i]!
@@ -37,7 +38,6 @@ function getMaxInsForPos(
   return maxIns
 }
 
-// eslint-disable-next-line unicorn/better-regex
 const cigarRegex = new RegExp(/([MIDNSHPX=])/)
 function parseCigar(cigar = '') {
   return cigar.split(cigarRegex).slice(0, -1)

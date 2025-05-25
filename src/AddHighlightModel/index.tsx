@@ -1,9 +1,11 @@
 import React from 'react'
-import PluginManager from '@jbrowse/core/PluginManager'
-import { LinearGenomeViewModel } from '@jbrowse/plugin-linear-genome-view'
+
+import HighlightComponents from './HighlightComponents'
+
+import type PluginManager from '@jbrowse/core/PluginManager'
+import type { LinearGenomeViewModel } from '@jbrowse/plugin-linear-genome-view'
 
 // locals
-import HighlightComponents from './HighlightComponents'
 
 export default function AddHighlightComponentsModelF(
   pluginManager: PluginManager,
