@@ -1,10 +1,11 @@
 import Plugin from '@jbrowse/core/Plugin'
-import PluginManager from '@jbrowse/core/PluginManager'
-// locals
+
 import { version } from '../package.json'
-import TViewF from './TViewPanel'
-import LaunchTViewF from './LaunchTView'
 import AddHighlightModelF from './AddHighlightModel'
+import LaunchTViewF from './LaunchTView'
+import TViewF from './TViewPanel'
+
+import type PluginManager from '@jbrowse/core/PluginManager'
 
 export default class TViewPlugin extends Plugin {
   name = 'TViewPlugin'
@@ -16,5 +17,5 @@ export default class TViewPlugin extends Plugin {
     AddHighlightModelF(pluginManager)
   }
 
-  configure(pluginManager: PluginManager) {}
+  configure(_pluginManager: PluginManager) {}
 }

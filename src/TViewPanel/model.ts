@@ -1,11 +1,10 @@
-import { Instance, cast, types } from 'mobx-state-tree'
-import { autorun } from 'mobx'
-import { MSAModelF } from 'react-msaview'
-import { getSession } from '@jbrowse/core/util'
-import { LinearGenomeViewModel } from '@jbrowse/plugin-linear-genome-view'
 import { BaseViewModel } from '@jbrowse/core/pluggableElementTypes'
+import { getSession } from '@jbrowse/core/util'
+import { cast, types } from 'mobx-state-tree'
+import { MSAModelF } from 'react-msaview'
 
-// locals
+import type { LinearGenomeViewModel } from '@jbrowse/plugin-linear-genome-view'
+import type { Instance } from 'mobx-state-tree'
 
 type LGV = LinearGenomeViewModel
 
@@ -76,7 +75,7 @@ export default function stateModelFactory() {
       },
     }))
 
-    .views(self => ({
+    .views(() => ({
       /**
        * #getter
        */
@@ -148,7 +147,7 @@ export default function stateModelFactory() {
       },
     }))
 
-    .actions(self => ({
+    .actions(() => ({
       afterCreate() {
         //
         // // this adds highlights to the genome view when mouse-ing over the MSA

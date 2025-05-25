@@ -1,5 +1,5 @@
-import fs from 'fs'
 import * as esbuild from 'esbuild'
+import http from 'node:http'
 import { globalExternals } from '@fal-works/esbuild-plugin-global-externals'
 import JbrowseGlobals from '@jbrowse/core/ReExports/list.js'
 import prettyBytes from 'pretty-bytes'
@@ -15,16 +15,12 @@ function createGlobalMap(jbrowseGlobals) {
   return globalMap
 }
 
-const result = await esbuild.build({
+let ctx = await esbuild.context({
   entryPoints: ['src/index.ts'],
   bundle: true,
   globalName: 'JBrowsePluginTView',
-
+  outfile: 'dist/out.js',
   metafile: true,
-  sourcemap: true,
-  outfile: 'dist/jbrowse-plugin-gwas.umd.production.min.js',
-  metafile: process.env.NODE_ENV === 'production',
-  minify: true,
   plugins: [
     globalExternals(createGlobalMap(JbrowseGlobals.default)),
     {
@@ -54,4 +50,42 @@ const result = await esbuild.build({
   ],
 })
 
-fs.writeFileSync('meta.json', JSON.stringify(result.metafile))
+const PORT = process.env.PORT ? +process.env.PORT : 9000
+const PORT2 = PORT + 400
+
+let { hosts } = await ctx.serve({
+  servedir: '.',
+  port: PORT2,
+})
+
+http
+  .createServer((req, res) => {
+    const proxyReq = http.request(
+      {
+        hostname: hosts[0],
+        port: PORT2,
+        path: req.url,
+        method: req.method,
+        headers: req.headers,
+      },
+      proxyRes => {
+        //restore the CORS after
+        //https://github.com/evanw/esbuild/releases/tag/v0.25.0 disabled it
+        //as a potential vuln
+        res.writeHead(proxyRes.statusCode, {
+          ...proxyRes.headers,
+          'Access-Control-Allow-Origin': '*',
+        })
+        proxyRes.pipe(res, { end: true })
+      },
+    )
+
+    // Forward the body of the request to esbuild
+    req.pipe(proxyReq, { end: true })
+  })
+  .listen(PORT)
+
+console.log(`Serving at http://${hosts[0]}:${PORT}`)
+
+await ctx.watch()
+console.log('Watching files...')
