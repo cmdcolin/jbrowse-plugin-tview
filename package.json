@@ -25,12 +25,13 @@
   "scripts": {
     "clean": "rimraf dist",
     "start": "node esbuild.mjs",
-    "format": "prettier --write .",
+    "format": "pnpm prettier --write .",
     "build": "tsc && NODE_ENV=production node esbuild.mjs",
-    "prebuild": "npm run clean",
-    "lint": "eslint --report-unused-disable-directives --max-warnings 0",
-    "prepack": "npm run build",
-    "postversion": "git push --follow-tags"
+    "prebuild": "pnpm clean",
+    "lint": "eslint src --report-unused-disable-directives --max-warnings 0",
+    "prepack": "pnpm build",
+    "postversion": "git push --follow-tags",
+    "preversion": "pnpm lint"
   },
   "jbrowse-plugin": {
     "name": "TView"
@@ -49,16 +50,14 @@
     "@mui/x-data-grid": "^8.4.0",
     "@types/node": "^22.15.21",
     "@types/react": "^19.1.5",
-    "@typescript-eslint/eslint-plugin": "^8.0.1",
-    "@typescript-eslint/parser": "^8.0.1",
+    "@typescript-eslint/eslint-plugin": "^8.59.1",
+    "@typescript-eslint/parser": "^8.59.1",
     "cors": "^2.8.5",
     "esbuild": "^0.25.4",
-    "eslint": "^9.0.0",
-    "eslint-plugin-import": "^2.31.0",
-    "eslint-plugin-react": "^7.20.3",
-    "eslint-plugin-react-hooks": "^5.2.0",
-    "eslint-plugin-react-refresh": "^0.4.9",
-    "eslint-plugin-unicorn": "^59.0.1",
+    "eslint": "^10.2.1",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-unicorn": "^64.0.0",
     "express": "^5.1.0",
     "mobx": "^6.10.2",
     "mobx-react": "^9.0.1",
@@ -73,6 +72,8 @@
     "serve-static": "^2.2.0",
     "tss-react": "^4.9.2",
     "typescript": "^5.2.2",
-    "typescript-eslint": "^8.1.0"
+    "typescript-eslint": "^8.59.1",
+    "@eslint/js": "^10.0.1",
+    "eslint-plugin-import-x": "^4.16.2"
   }
 }
