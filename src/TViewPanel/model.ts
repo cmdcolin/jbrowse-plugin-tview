@@ -3,7 +3,7 @@ import { getSession } from '@jbrowse/core/util'
 import { types } from '@jbrowse/mobx-state-tree'
 import { MSAModelF } from 'react-msaview'
 
-import { buildColumnToRefPos } from './coords'
+import { buildColumnToRefPos, renderedColToMsaCol } from './coords'
 
 import type { Instance } from '@jbrowse/mobx-state-tree'
 import type { LinearGenomeViewModel } from '@jbrowse/plugin-linear-genome-view'
@@ -77,8 +77,8 @@ export default function stateModelFactory() {
        * #method
        */
       colToGenomeRegion(col: number): IRegion | undefined {
-        const { columnToRefPos, msaRegion } = self
-        const pos = columnToRefPos?.[col]
+        const { columnToRefPos, msaRegion, blanks } = self
+        const pos = columnToRefPos?.[renderedColToMsaCol(blanks, col)]
         return msaRegion && pos !== undefined
           ? { refName: msaRegion.refName, start: pos, end: pos + 1 }
           : undefined
@@ -92,7 +92,7 @@ export default function stateModelFactory() {
        */
       get connectedHighlights() {
         const { mouseCol, mouseClickCol } = self
-        return [mouseCol, mouseClickCol]
+        return [...new Set([mouseCol, mouseClickCol])]
           .filter((col): col is number => col !== undefined)
           .map(col => self.colToGenomeRegion(col))
           .filter((r): r is IRegion => r !== undefined)

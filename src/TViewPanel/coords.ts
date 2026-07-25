@@ -23,3 +23,21 @@ export function buildColumnToRefPos({
   }
   return ret
 }
+
+/**
+ * react-msaview drops all-gap columns from the rendering when hideGaps is
+ * effective (a row is collapsed, or allowedGappyness < 100), so the column
+ * index its mouse handlers report counts only visible columns. Expand it back
+ * to an index into the full alignment. `blanks` is ascending.
+ */
+export function renderedColToMsaCol(blanks: number[], col: number) {
+  let ret = col
+  for (const blank of blanks) {
+    if (blank <= ret) {
+      ret++
+    } else {
+      break
+    }
+  }
+  return ret
+}

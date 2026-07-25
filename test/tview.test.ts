@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildTviewMsa, parseCigar, parseRead } from '../src/LaunchTView/tview'
-import { buildColumnToRefPos } from '../src/TViewPanel/coords'
+import {
+  buildColumnToRefPos,
+  renderedColToMsaCol,
+} from '../src/TViewPanel/coords'
 
 import type { AlignmentFeature } from '../src/LaunchTView/tview'
 
@@ -42,12 +45,20 @@ describe('parseRead', () => {
     expect([...read.insertions]).toEqual([[103, 'GG']])
   })
 
-  it('emits gaps for deletions and skips', () => {
+  it('emits a spanned gap for deletions', () => {
     const read = parseRead(
       feature({ name: 'r', start: 0, CIGAR: '2M3D2M', seq: 'AACC' }),
       'r',
     )
     expect(read.refChars).toBe('AA---CC')
+  })
+
+  it('emits an absence for reference skips, not a deletion', () => {
+    const read = parseRead(
+      feature({ name: 'r', start: 0, CIGAR: '2M3N2M', seq: 'AACC' }),
+      'r',
+    )
+    expect(read.refChars).toBe('AA...CC')
   })
 
   it('consumes soft clips from the read but not the reference', () => {
@@ -56,6 +67,15 @@ describe('parseRead', () => {
       'r',
     )
     expect(read.refChars).toBe('AAAA')
+  })
+
+  it('merges consecutive insertions at the same reference position', () => {
+    const read = parseRead(
+      feature({ name: 'r', start: 0, CIGAR: '3M2I3I3M', seq: 'AAAGGTTTCCC' }),
+      'r',
+    )
+    expect(read.refChars).toBe('AAACCC')
+    expect([...read.insertions]).toEqual([[3, 'GGTTT']])
   })
 
   it('consumes neither reference nor read for hard clips', () => {
@@ -97,10 +117,50 @@ describe('buildTviewMsa', () => {
       start: 0,
       end: 6,
     })
+    // where the inserted bases sit within the 3 insertion columns is up to
+    // align.ts; what matters here is that the reference columns still line up
     expect(Object.fromEntries(rows(msa))).toEqual({
       r1: 'AAAGGGCCC',
-      r2: 'AAAT--CCC',
+      r2: 'AAA--TCCC',
       r3: 'AAA---CCC',
+    })
+  })
+
+  it('aligns insertions that share an event but differ inside it', () => {
+    const { msa } = buildTviewMsa({
+      features: [
+        // both insert ACGTACGT, but r2 is missing the T at offset 3
+        feature({
+          name: 'r1',
+          start: 0,
+          CIGAR: '1M8I1M',
+          seq: 'AACGTACGTA',
+        }),
+        feature({ name: 'r2', start: 0, CIGAR: '1M7I1M', seq: 'AACGACGTA' }),
+      ],
+      refName: 'ctgA',
+      start: 0,
+      end: 2,
+    })
+    expect(Object.fromEntries(rows(msa))).toEqual({
+      r1: 'AACGTACGTA',
+      r2: 'AACG-ACGTA',
+    })
+  })
+
+  it('distinguishes skipped reference from deleted reference', () => {
+    const { msa } = buildTviewMsa({
+      features: [
+        feature({ name: 'del', start: 0, CIGAR: '1M3D1M', seq: 'AT' }),
+        feature({ name: 'skip', start: 0, CIGAR: '1M3N1M', seq: 'AT' }),
+      ],
+      refName: 'ctgA',
+      start: 0,
+      end: 5,
+    })
+    expect(Object.fromEntries(rows(msa))).toEqual({
+      del: 'A---T',
+      skip: 'A...T',
     })
   })
 
@@ -116,6 +176,19 @@ describe('buildTviewMsa', () => {
     expect(insertionWidths).toEqual([[4, 'GG'.length]])
     // 8 reference columns + 2 insertion columns; uncovered positions are '.'
     expect(Object.fromEntries(rows(msa))).toEqual({ r1: '..AAGGCC..' })
+  })
+
+  it('omits insertions from reads that fall outside the region', () => {
+    const { insertionWidths } = buildTviewMsa({
+      features: [
+        feature({ name: 'r1', start: 2, CIGAR: '2M2I2M', seq: 'AAGGCC' }),
+        feature({ name: 'r2', start: 100, CIGAR: '2M5I2M', seq: 'AAGGGGGCC' }),
+      ],
+      refName: 'ctgA',
+      start: 0,
+      end: 8,
+    })
+    expect(insertionWidths).toEqual([[4, 2]])
   })
 
   it('disambiguates duplicate read names', () => {
@@ -157,5 +230,20 @@ describe('buildColumnToRefPos', () => {
     expect(colToRefPos.length).toBe(rows(msa)[0]![1].length)
     // every reference position in the region is reachable from some column
     expect([...new Set(colToRefPos)]).toEqual([0, 1, 2, 3, 4, 5])
+  })
+})
+
+describe('renderedColToMsaCol', () => {
+  it('is the identity when nothing is hidden', () => {
+    expect([0, 1, 2].map(c => renderedColToMsaCol([], c))).toEqual([0, 1, 2])
+  })
+
+  it('skips past hidden all-gap columns', () => {
+    // full columns 1 and 3 are hidden, so rendered 0..2 -> full 0, 2, 4
+    expect([0, 1, 2].map(c => renderedColToMsaCol([1, 3], c))).toEqual([0, 2, 4])
+  })
+
+  it('handles hidden columns at the start', () => {
+    expect([0, 1].map(c => renderedColToMsaCol([0, 1], c))).toEqual([2, 3])
   })
 })

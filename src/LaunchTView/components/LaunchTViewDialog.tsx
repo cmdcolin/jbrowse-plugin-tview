@@ -34,7 +34,7 @@ export default function LaunchTViewDialog({
         assemblyName: block.assemblyName,
         refName: block.refName,
         start: Math.floor(block.start),
-        end: Math.floor(block.end),
+        end: Math.ceil(block.end),
       }
     : undefined
   const width = region ? region.end - region.start : 0
