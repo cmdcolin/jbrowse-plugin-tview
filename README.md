@@ -22,10 +22,6 @@ reference columns still line up.
 
 Regenerate with `pnpm figure`.
 
-![](img/1.png)
-
-TView plugin running in JBrowse 2
-
 ## Usage
 
 - Install the plugin

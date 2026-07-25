@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildTviewMsa, parseCigar, parseRead } from '../src/LaunchTView/tview'
+import {
+  buildTviewMsa,
+  parseCigar,
+  parseRead,
+  planTviewMsa,
+} from '../src/LaunchTView/tview'
 import {
   buildColumnToRefPos,
   renderedColToMsaCol,
@@ -230,6 +235,23 @@ describe('buildColumnToRefPos', () => {
     expect(colToRefPos.length).toBe(rows(msa)[0]![1].length)
     // every reference position in the region is reachable from some column
     expect([...new Set(colToRefPos)]).toEqual([0, 1, 2, 3, 4, 5])
+  })
+})
+
+describe('planTviewMsa', () => {
+  it('counts the cells the render would produce, without rendering', () => {
+    const plan = planTviewMsa({
+      features: [
+        feature({ name: 'r1', start: 0, CIGAR: '3M3I3M', seq: 'AAAGGGCCC' }),
+        feature({ name: 'r2', start: 0, CIGAR: '6M', seq: 'AAACCC' }),
+      ],
+      refName: 'ctgA',
+      start: 0,
+      end: 6,
+    })
+    // 6 reference columns + 3 insertion columns, over 2 rows
+    expect(plan.layout.totalColumns).toBe(9)
+    expect(plan.cellCount).toBe(18)
   })
 })
 

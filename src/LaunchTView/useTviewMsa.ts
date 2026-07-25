@@ -3,7 +3,7 @@ import { assembleLocString, getSession } from '@jbrowse/core/util'
 import { getRpcSessionId } from '@jbrowse/core/util/tracks'
 import useSWR from 'swr'
 
-import { buildTviewMsa } from './tview'
+import { planTviewMsa } from './tview'
 
 import type { AbstractTrackModel, Feature } from '@jbrowse/core/util'
 
@@ -37,8 +37,10 @@ async function fetcher({
     regions: [region],
   })) as Feature[]
   const features = feats.filter(f => !!f.get('seq'))
+  // only planned, not rendered: the dialog just reports on the alignment, and
+  // the caller may well cancel or find it too large to be worth building
   return {
-    ...buildTviewMsa({ features, ...region }),
+    plan: planTviewMsa({ features, ...region }),
     rowCount: features.length,
   }
 }

@@ -115,9 +115,10 @@ export interface ColumnLayout {
   insWidths: Map<number, number>
   /**
    * column index at which each reference position's columns begin, for
-   * start..end inclusive, so the last entry is the total column count
+   * start..end inclusive
    */
   offsets: number[]
+  totalColumns: number
 }
 
 /**
@@ -136,7 +137,7 @@ export function buildColumnLayout(
     col += (insWidths.get(pos) ?? 0) + 1
     offsets.push(col)
   }
-  return { start, end, insWidths, offsets }
+  return { start, end, insWidths, offsets, totalColumns: col }
 }
 
 /**
@@ -145,8 +146,7 @@ export function buildColumnLayout(
  * in one shot rather than walked position by position.
  */
 export function renderRow(read: ReadLayout, layout: ColumnLayout) {
-  const { start, end, insWidths, offsets } = layout
-  const total = offsets[end - start]!
+  const { start, end, insWidths, offsets, totalColumns } = layout
   // a trailing insertion is keyed one past the last position the read spans
   const from = Math.max(start, read.start)
   const to = Math.min(end, read.start + read.refChars.length + 1)
@@ -168,9 +168,9 @@ export function renderRow(read: ReadLayout, layout: ColumnLayout) {
       }
       ret += refChar
     }
-    ret += ABSENT.repeat(total - offsets[to - start]!)
+    ret += ABSENT.repeat(totalColumns - offsets[to - start]!)
   } else {
-    ret = ABSENT.repeat(total)
+    ret = ABSENT.repeat(totalColumns)
   }
   return ret
 }
@@ -190,7 +190,21 @@ function getReadNames(features: AlignmentFeature[]) {
   })
 }
 
-export function buildTviewMsa({
+export interface TviewPlan {
+  reads: ReadLayout[]
+  layout: ColumnLayout
+  insertionWidths: [number, number][]
+  region: { refName: string; start: number; end: number }
+  /** rows x columns, i.e. how big the alignment renderTviewMsa builds will be */
+  cellCount: number
+}
+
+/**
+ * Works out the shape of the alignment without materializing it. Everything
+ * here is proportional to the sequence data, unlike the render, which is
+ * proportional to rows x columns and can be far larger.
+ */
+export function planTviewMsa({
   features,
   refName,
   start,
@@ -200,7 +214,7 @@ export function buildTviewMsa({
   refName: string
   start: number
   end: number
-}) {
+}): TviewPlan {
   const names = getReadNames(features)
   const reads = alignInsertionColumns(
     features.map((f, i) => parseRead(f, names[i]!)).sort(byStart),
@@ -209,12 +223,32 @@ export function buildTviewMsa({
   const layout = buildColumnLayout(start, end, insWidths)
 
   return {
-    msa: reads.map(r => `>${r.name}\n${renderRow(r, layout)}\n`).join(''),
+    reads,
+    layout,
     // only in-region insertions produce columns, so anything else would be
     // dead weight in the persisted state model
     insertionWidths: [...insWidths.entries()]
       .filter(([pos]) => pos >= start && pos < end)
       .sort((a, b) => a[0] - b[0]),
     region: { refName, start, end },
+    cellCount: reads.length * layout.totalColumns,
+  }
+}
+
+export function renderTviewMsa({ reads, layout }: TviewPlan) {
+  return reads.map(r => `>${r.name}\n${renderRow(r, layout)}\n`).join('')
+}
+
+export function buildTviewMsa(args: {
+  features: AlignmentFeature[]
+  refName: string
+  start: number
+  end: number
+}) {
+  const plan = planTviewMsa(args)
+  return {
+    msa: renderTviewMsa(plan),
+    insertionWidths: plan.insertionWidths,
+    region: plan.region,
   }
 }
