@@ -1,10 +1,9 @@
 import Plugin from '@jbrowse/core/Plugin'
 
-// locals
-import { version } from '../package.json'
 import AddHighlightModelF from './AddHighlightModel'
 import LaunchTViewF from './LaunchTView'
 import TViewF from './TViewPanel'
+import { version } from './version'
 
 import type PluginManager from '@jbrowse/core/PluginManager'
 

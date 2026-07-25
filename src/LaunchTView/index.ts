@@ -1,19 +1,16 @@
 import { getContainingTrack, getSession } from '@jbrowse/core/util'
-
-// icons
 import AddIcon from '@mui/icons-material/Add'
 
-// locals
 import LaunchTViewDialog from './components/LaunchTViewDialog'
 
 import type PluginManager from '@jbrowse/core/PluginManager'
 import type { PluggableElementType } from '@jbrowse/core/pluggableElementTypes'
 import type DisplayType from '@jbrowse/core/pluggableElementTypes/DisplayType'
 import type { MenuItem } from '@jbrowse/core/ui'
-import type { IAnyModelType } from 'mobx-state-tree'
+import type { IAnyModelType } from '@jbrowse/mobx-state-tree'
 
 function isDisplay(elt: { name: string }): elt is DisplayType {
-  return elt.name === 'LinearPileupDisplay'
+  return elt.name === 'LinearAlignmentsDisplay'
 }
 
 function extendStateModel(stateModel: IAnyModelType) {

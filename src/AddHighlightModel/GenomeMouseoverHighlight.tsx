@@ -7,38 +7,48 @@ import { useStyles } from './util'
 
 import type { LinearGenomeViewModel } from '@jbrowse/plugin-linear-genome-view'
 
+interface HoverPosition {
+  coord: number
+  refName: string
+}
+
+function getHoverPosition(hovered: unknown): HoverPosition | undefined {
+  const pos =
+    !!hovered && typeof hovered === 'object' && 'hoverPosition' in hovered
+      ? hovered.hoverPosition
+      : undefined
+  return !!pos &&
+    typeof pos === 'object' &&
+    'coord' in pos &&
+    typeof pos.coord === 'number' &&
+    'refName' in pos &&
+    typeof pos.refName === 'string'
+    ? { coord: pos.coord, refName: pos.refName }
+    : undefined
+}
+
 const GenomeMouseoverHighlight = observer(function GenomeMouseoverHighlight2({
   model,
 }: {
   model: LinearGenomeViewModel
 }) {
-  const { hovered } = getSession(model)
-  return hovered &&
-    typeof hovered === 'object' &&
-    'hoverPosition' in hovered ? (
-    <HoverHighlight model={model} />
-  ) : null
-})
-
-const HoverHighlight = observer(function HoverHighlight2({
-  model,
-}: {
-  model: LinearGenomeViewModel
-}) {
   const { classes } = useStyles()
-  const session = getSession(model)
-  if (session.views.some(s => s.type === 'TView')) {
-    const { hovered } = session
-    const { offsetPx } = model
-    // @ts-expect-error
-    const { coord, refName } = hovered.hoverPosition
+  const hoverPosition = getHoverPosition(getSession(model).hovered)
 
+  if (hoverPosition) {
+    const { coord, refName } = hoverPosition
     const s = model.bpToPx({ refName, coord: coord - 1 })
-    const e = model.bpToPx({ refName, coord: coord })
+    const e = model.bpToPx({ refName, coord })
     if (s && e) {
-      const width = Math.max(Math.abs(e.offsetPx - s.offsetPx), 4)
-      const left = Math.min(s.offsetPx, e.offsetPx) - offsetPx
-      return <div className={classes.highlight} style={{ left, width }} />
+      return (
+        <div
+          className={classes.highlight}
+          style={{
+            left: Math.min(s.offsetPx, e.offsetPx) - model.offsetPx,
+            width: Math.max(Math.abs(e.offsetPx - s.offsetPx), 4),
+          }}
+        />
+      )
     }
   }
   return null

@@ -3,51 +3,41 @@ import React from 'react'
 import { getSession } from '@jbrowse/core/util'
 import { observer } from 'mobx-react'
 
-// locals
 import { useStyles } from './util'
+import { isTView } from '../TViewPanel/model'
 
-import type { JBrowsePluginTViewModel } from '../TViewPanel/model'
-import type { Assembly } from '@jbrowse/core/assemblyManager/assembly'
 import type { LinearGenomeViewModel } from '@jbrowse/plugin-linear-genome-view'
-
-type LGV = LinearGenomeViewModel
-
-function getCanonicalName(assembly: Assembly, s: string) {
-  return assembly.getCanonicalRefName(s) ?? s
-}
 
 const MsaToGenomeHighlight = observer(function MsaToGenomeHighlight2({
   model,
 }: {
-  model: LGV
+  model: LinearGenomeViewModel
 }) {
   const { classes } = useStyles()
-  const { assemblyManager, views } = getSession(model)
-  const p = views.find(f => f.type === 'TView') as
-    | JBrowsePluginTViewModel
-    | undefined
-  const assembly = assemblyManager.get(model.assemblyNames[0]!)
-  return assembly ? (
+  const { views } = getSession(model)
+  const highlights = views
+    .filter(isTView)
+    .filter(v => v.connectedViewId === model.id)
+    .flatMap(v => v.connectedHighlights)
+
+  return (
     <>
-      {p?.connectedHighlights.map((r, idx) => {
-        const refName = getCanonicalName(assembly, r.refName)
-        const s = model.bpToPx({ refName, coord: r.start })
-        const e = model.bpToPx({ refName, coord: r.end })
-        if (s && e) {
-          const width = Math.max(Math.abs(e.offsetPx - s.offsetPx), 4)
-          const left = Math.min(s.offsetPx, e.offsetPx) - model.offsetPx
-          return (
-            <div
-              key={`${JSON.stringify(r)}-${idx}`}
-              className={classes.highlight}
-              style={{ left, width }}
-            />
-          )
-        }
-        return null
+      {highlights.map((r, idx) => {
+        const s = model.bpToPx({ refName: r.refName, coord: r.start })
+        const e = model.bpToPx({ refName: r.refName, coord: r.end })
+        return s && e ? (
+          <div
+            key={`${r.refName}-${r.start}-${idx}`}
+            className={classes.highlight}
+            style={{
+              left: Math.min(s.offsetPx, e.offsetPx) - model.offsetPx,
+              width: Math.max(Math.abs(e.offsetPx - s.offsetPx), 4),
+            }}
+          />
+        ) : null
       })}
     </>
-  ) : null
+  )
 })
 
 export default MsaToGenomeHighlight

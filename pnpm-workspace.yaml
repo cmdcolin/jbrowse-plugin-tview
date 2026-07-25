@@ -1,0 +1,9 @@
+allowBuilds:
+  esbuild: true
+  puppeteer: true
+  unrs-resolver: true
+minimumReleaseAgeExclude:
+  - '@jbrowse/mobx-state-tree'
+  - 'react-msaview'
+  - 'msa-parsers'
+  - '@jbrowse/svgcanvas@5.6.1'

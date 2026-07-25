@@ -1,16 +1,18 @@
 import { BaseViewModel } from '@jbrowse/core/pluggableElementTypes'
 import { getSession } from '@jbrowse/core/util'
-import { cast, types } from 'mobx-state-tree'
+import { types } from '@jbrowse/mobx-state-tree'
 import { MSAModelF } from 'react-msaview'
 
+import { buildColumnToRefPos } from './coords'
+
+import type { Instance } from '@jbrowse/mobx-state-tree'
 import type { LinearGenomeViewModel } from '@jbrowse/plugin-linear-genome-view'
-import type { Instance } from 'mobx-state-tree'
 
-// locals
+// re-exported so the inferred (composed) state-model type can name mobx's
+// IKeyValueMap when emitting declarations (avoids TS2883 portability error)
+export type { IKeyValueMap } from 'mobx'
 
-type LGV = LinearGenomeViewModel
-
-type MaybeLGV = LGV | undefined
+type MaybeLGV = LinearGenomeViewModel | undefined
 
 export interface IRegion {
   refName: string
@@ -33,66 +35,67 @@ export default function stateModelFactory() {
         type: types.literal('TView'),
         /**
          * #property
+         * LGV this pileup was launched from; drives highlights and click-to-nav
          */
         connectedViewId: types.maybe(types.string),
         /**
          * #property
+         * reference region the alignment columns span
          */
-        connectedFeature: types.frozen(),
+        msaRegion: types.frozen<IRegion | undefined>(),
+        /**
+         * #property
+         * [refPos, width] for every position where some read has an insertion
+         */
+        insertionWidths: types.frozen<[number, number][]>([]),
         /**
          * #property
          */
-        connectedHighlights: types.array(
-          types.model({
-            refName: types.string,
-            start: types.number,
-            end: types.number,
-          }),
-        ),
-
-        /**
-         * #property
-         */
-        zoomToBaseLevel: false,
+        zoomToBaseLevel: types.optional(types.boolean, false),
       }),
     )
     .views(self => ({
       /**
-       * #method
-       */
-      ungappedCoordMap(rowName: string, position: number) {
-        const row = self.rows.find(f => f[0] === rowName)
-        const seq = row?.[1]
-        if (seq && position < seq.length) {
-          let i = 0
-          let j = 0
-          for (; j < position; j++, i++) {
-            while (seq[i] === '-') {
-              i++
-            }
-          }
-          return i
-        }
-        return undefined
-      },
-    }))
-
-    .views(() => ({
-      /**
        * #getter
        */
-      get clickCol2() {
-        return undefined
+      get columnToRefPos() {
+        const { msaRegion, insertionWidths } = self
+        return msaRegion
+          ? buildColumnToRefPos({ ...msaRegion, insertionWidths })
+          : undefined
       },
-    }))
-
-    .views(self => ({
       /**
        * #getter
        */
       get connectedView() {
         const { views } = getSession(self)
         return views.find(f => f.id === self.connectedViewId) as MaybeLGV
+      },
+    }))
+    .views(self => ({
+      /**
+       * #method
+       */
+      colToGenomeRegion(col: number): IRegion | undefined {
+        const { columnToRefPos, msaRegion } = self
+        const pos = columnToRefPos?.[col]
+        return msaRegion && pos !== undefined
+          ? { refName: msaRegion.refName, start: pos, end: pos + 1 }
+          : undefined
+      },
+    }))
+    .views(self => ({
+      /**
+       * #getter
+       * regions the connected LGV highlights: the hovered column plus the
+       * sticky clicked column
+       */
+      get connectedHighlights() {
+        const { mouseCol, mouseClickCol } = self
+        return [mouseCol, mouseClickCol]
+          .filter((col): col is number => col !== undefined)
+          .map(col => self.colToGenomeRegion(col))
+          .filter((r): r is IRegion => r !== undefined)
       },
     }))
     .actions(self => ({
@@ -105,23 +108,32 @@ export default function stateModelFactory() {
       /**
        * #action
        */
-      setConnectedHighlights(r: IRegion[]) {
-        self.connectedHighlights = cast(r)
-      },
-      /**
-       * #action
-       */
-      addToConnectedHighlights(r: IRegion) {
-        self.connectedHighlights.push(r)
-      },
-      /**
-       * #action
-       */
-      clearConnectedHighlights() {
-        self.connectedHighlights = cast([])
+      navToColumn(col: number) {
+        const { connectedView, zoomToBaseLevel } = self
+        const r = self.colToGenomeRegion(col)
+        if (r && connectedView) {
+          if (zoomToBaseLevel) {
+            connectedView.navTo(r)
+          } else {
+            connectedView.centerAt(r.start, r.refName)
+          }
+        }
       },
     }))
-
+    .actions(self => {
+      const superSetMouseClickPos = self.setMouseClickPos.bind(self)
+      return {
+        /**
+         * #action
+         */
+        setMouseClickPos(col?: number, row?: number) {
+          superSetMouseClickPos(col, row)
+          if (col !== undefined) {
+            self.navToColumn(col)
+          }
+        },
+      }
+    })
     .views(self => ({
       /**
        * #method
@@ -139,65 +151,14 @@ export default function stateModelFactory() {
           },
         ]
       },
-
-      /**
-       * #getter
-       */
-      get connectedView() {
-        const { views } = getSession(self)
-        return views.find(f => f.id === self.connectedViewId) as MaybeLGV
-      },
-    }))
-
-    .actions(() => ({
-      afterCreate() {
-        //
-        // // this adds highlights to the genome view when mouse-ing over the MSA
-        // addDisposer(
-        //   self,
-        //   autorun(() => {
-        //     const { mouseCol, mouseClickCol } = self
-        //     const r1 =
-        //       mouseCol === undefined
-        //         ? undefined
-        //         : msaCoordToGenomeCoord({ model: self, coord: mouseCol })
-        //     const r2 =
-        //       mouseClickCol === undefined
-        //         ? undefined
-        //         : msaCoordToGenomeCoord({ model: self, coord: mouseClickCol })
-        //     self.setConnectedHighlights([r1, r2].filter(f => !!f))
-        //   }),
-        // )
-        //
-        // // nav to genome position after click
-        // addDisposer(
-        //   self,
-        //   autorun(() => {
-        //     const { connectedView, zoomToBaseLevel, mouseClickCol } = self
-        //     const { assemblyManager } = getSession(self)
-        //     const r2 =
-        //       mouseClickCol === undefined
-        //         ? undefined
-        //         : msaCoordToGenomeCoord({ model: self, coord: mouseClickCol })
-        //
-        //     if (!r2 || !connectedView) {
-        //       return
-        //     }
-        //
-        //     if (zoomToBaseLevel) {
-        //       connectedView.navTo(r2)
-        //     } else {
-        //       const r =
-        //         assemblyManager
-        //           .get(connectedView.assemblyNames[0]!)
-        //           ?.getCanonicalRefName(r2.refName) ?? r2.refName
-        //       connectedView.centerAt(r2.start, r)
-        //     }
-        //   }),
-        // )
-      },
     }))
 }
 
 export type JBrowsePluginTViewStateModel = ReturnType<typeof stateModelFactory>
 export type JBrowsePluginTViewModel = Instance<JBrowsePluginTViewStateModel>
+
+export function isTView(view: {
+  type: string
+}): view is JBrowsePluginTViewModel {
+  return view.type === 'TView'
+}

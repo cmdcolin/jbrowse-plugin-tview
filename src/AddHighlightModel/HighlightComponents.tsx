@@ -2,7 +2,6 @@ import React from 'react'
 
 import { observer } from 'mobx-react'
 
-// locals
 import GenomeMouseoverHighlight from './GenomeMouseoverHighlight'
 import MsaToGenomeHighlight from './MsaToGenomeHighlight'
 
