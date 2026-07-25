@@ -27,8 +27,11 @@ export default function LaunchTViewDialog({
   const view = getContainingView(model) as LinearGenomeViewModel
   const session = getSession(model)
   const block = view.dynamicBlocks.contentBlocks[0]
+  // assemblyName is required: the RPC uses it to map the view's refName onto
+  // whatever the file calls that sequence (refNameAliases)
   const region = block
     ? {
+        assemblyName: block.assemblyName,
         refName: block.refName,
         start: Math.floor(block.start),
         end: Math.floor(block.end),

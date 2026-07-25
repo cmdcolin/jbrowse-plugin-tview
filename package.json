@@ -28,6 +28,8 @@
     "test:watch": "vitest",
     "pretest:e2e": "test -d .test-jbrowse || pnpm dlx @jbrowse/cli create .test-jbrowse --nightly",
     "test:e2e": "vitest run --config vitest.config.e2e.ts",
+    "prefigure": "pnpm pretest:e2e",
+    "figure": "node scripts/figure.mjs",
     "prepack": "pnpm build",
     "preversion": "pnpm lint",
     "version": "node scripts/version.mjs",

@@ -91,6 +91,28 @@ async function screenshot(page: Page, name: string) {
   await page.screenshot({ path: `${SHOTS}/${name}.png` })
 }
 
+describe('dev server', () => {
+  // esbuild's serve answers 200 with the whole file when a Range end is past
+  // EOF, which BAM readers misparse as "invalid bgzf header"
+  it('clamps a range whose end is past EOF instead of returning 200', async () => {
+    const url = `http://localhost:${PORT}/public/volvox-sorted-altname.bam`
+    const size = fs.statSync('public/volvox-sorted-altname.bam').size
+    const res = await fetch(url, {
+      headers: { Range: `bytes=262144-${size + 100000}` },
+    })
+    expect(res.status).toBe(206)
+    expect(res.headers.get('content-range')).toBe(
+      `bytes 262144-${size - 1}/${size}`,
+    )
+    const got = new Uint8Array(await res.arrayBuffer())
+    const want = new Uint8Array(
+      fs.readFileSync('public/volvox-sorted-altname.bam'),
+    ).subarray(262144)
+    expect(got.length).toBe(want.length)
+    expect(got.every((b, i) => b === want[i])).toBe(true)
+  }, 60_000)
+})
+
 describe('tview plugin in jbrowse-web', () => {
   it('loads the UMD bundle and registers the TView view type', async () => {
     const { page, errors } = await openJBrowse()
@@ -143,6 +165,83 @@ describe('tview plugin in jbrowse-web', () => {
     const text = await page.evaluate(() => document.body.innerText)
     expect(text).toMatch(/ctgA:1,000\.\.1,200/)
     await screenshot(page, '02-dialog')
+    await page.close()
+  }, 180_000)
+
+  it('builds a tview from real BAM reads, expanding insertions', async () => {
+    const { page, errors } = await openJBrowse()
+    await waitForDisplay(page)
+    // 19 reads carry a 1bp insertion at ctgA:15163 while others span it without
+    await page.evaluate(async () => {
+      await window.JBrowseSession.views[0].navToLocString(
+        'ctgA:15100..15250',
+        'volvox',
+      )
+    })
+    await page.evaluate(() => {
+      window.JBrowseSession.views[0].tracks[0].displays[0]
+        .trackMenuItems()
+        .find(
+          (i: { label: string }) =>
+            i.label === 'Launch tview for visible region',
+        )
+        .onClick()
+    })
+    await page.waitForFunction(
+      () => document.body.innerText.includes('reads with sequence data found'),
+      { timeout: 60_000 },
+    )
+    await page.evaluate(() => {
+      const submit = [...document.querySelectorAll('button')].find(
+        b => b.textContent.trim() === 'Submit',
+      )
+      submit?.click()
+    })
+    await page.waitForFunction(
+      () =>
+        window.JBrowseSession.views.find(
+          (v: { type: string }) => v.type === 'TView',
+        )?.rows.length > 0,
+      { timeout: 60_000 },
+    )
+
+    const tv = await page.evaluate(() => {
+      const v = window.JBrowseSession.views.find(
+        (x: { type: string }) => x.type === 'TView',
+      )
+      const insCol = v.columnToRefPos.indexOf(15163)
+      const counts: Record<string, number> = {}
+      for (const r of v.rows) {
+        const c = r[1][insCol]
+        counts[c] = (counts[c] ?? 0) + 1
+      }
+      return {
+        rows: v.rows.length,
+        distinctRowLengths: new Set(v.rows.map((r: string[]) => r[1]?.length))
+          .size,
+        insertionWidths: v.insertionWidths,
+        countsAtInsertionColumn: counts,
+        insertionColumnMapsTo: v.colToGenomeRegion(insCol),
+      }
+    })
+
+    expect(tv.rows).toBeGreaterThan(0)
+    // the invariant that makes tview readable
+    expect(tv.distinctRowLengths).toBe(1)
+    expect(tv.insertionWidths).toContainEqual([15163, 1])
+    // reads with the insertion show a base, one spanning read shows a gap
+    const bases = Object.entries(tv.countsAtInsertionColumn)
+      .filter(([c]) => /[ACGT]/.test(c))
+      .reduce((a, [, n]) => a + n, 0)
+    expect(bases).toBe(19)
+    expect(tv.countsAtInsertionColumn['-'] ?? 0).toBeGreaterThan(0)
+    expect(tv.insertionColumnMapsTo).toEqual({
+      refName: 'ctgA',
+      start: 15163,
+      end: 15164,
+    })
+    expect(errors.filter(e => /bgzf|TView|tview/i.test(e))).toEqual([])
+    await screenshot(page, '04-real-bam')
     await page.close()
   }, 180_000)
 

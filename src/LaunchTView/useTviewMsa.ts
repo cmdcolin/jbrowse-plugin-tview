@@ -5,8 +5,15 @@ import useSWR from 'swr'
 
 import { buildTviewMsa } from './tview'
 
-import type { IRegion } from '../TViewPanel/model'
 import type { AbstractTrackModel, Feature } from '@jbrowse/core/util'
+
+/** the RPC needs assemblyName to resolve refNameAliases for the file */
+export interface FetchRegion {
+  assemblyName: string
+  refName: string
+  start: number
+  end: number
+}
 
 const staticSwrConfig = {
   revalidateOnFocus: false,
@@ -20,7 +27,7 @@ async function fetcher({
   region,
 }: {
   model: AbstractTrackModel
-  region: IRegion
+  region: FetchRegion
 }) {
   const { rpcManager } = getSession(model)
   const sessionId = getRpcSessionId(model)
@@ -41,7 +48,7 @@ export function useTviewMsa({
   region,
 }: {
   model: AbstractTrackModel
-  region?: IRegion
+  region?: FetchRegion
 }) {
   const { data, error, isLoading } = useSWR(
     region ? [assembleLocString(region), model.id, 'tview'] : null,

@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import http from 'node:http'
+import path from 'node:path'
 import * as esbuild from 'esbuild'
 import { globalExternals } from '@fal-works/esbuild-plugin-global-externals'
 import JBrowseReExports from '@jbrowse/core/ReExports/list'
@@ -65,6 +66,58 @@ const config = {
       }),
 }
 
+function statFile(urlPath) {
+  const file = path.join(process.cwd(), decodeURIComponent(urlPath))
+  let stats
+  if (file.startsWith(process.cwd())) {
+    try {
+      stats = fs.statSync(file)
+    } catch {}
+  }
+  return stats?.isFile() ? { file, size: stats.size } : undefined
+}
+
+/**
+ * esbuild's serve ignores a Range whose end is past EOF and answers 200 with the
+ * whole file. BAM/CRAM readers then parse byte 0 as if it were the requested
+ * offset and fail with "invalid bgzf header", so serve on-disk files here
+ * instead, clamping the end per RFC 7233.
+ */
+function serveRange(req, res) {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range ?? '')
+  const target = match ? statFile(req.url.split('?')[0]) : undefined
+  if (target) {
+    const { file, size } = target
+    const suffixLength = match[1] === '' ? Number(match[2]) : undefined
+    const start =
+      suffixLength === undefined
+        ? Number(match[1])
+        : Math.max(0, size - suffixLength)
+    const end =
+      suffixLength === undefined && match[2] !== ''
+        ? Math.min(Number(match[2]), size - 1)
+        : size - 1
+
+    if (start >= size || start > end) {
+      res.writeHead(416, {
+        'Content-Range': `bytes */${size}`,
+        'Access-Control-Allow-Origin': '*',
+      })
+      res.end()
+    } else {
+      res.writeHead(206, {
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': end - start + 1,
+        'Content-Range': `bytes ${start}-${end}/${size}`,
+        'Accept-Ranges': 'bytes',
+        'Access-Control-Allow-Origin': '*',
+      })
+      fs.createReadStream(file, { start, end }).pipe(res)
+    }
+  }
+  return !!target
+}
+
 if (isWatch) {
   const ctx = await esbuild.context(config)
   // Proxy esbuild's server so we can inject CORS headers — esbuild dropped CORS
@@ -74,23 +127,25 @@ if (isWatch) {
 
   http
     .createServer((req, res) => {
-      const proxyReq = http.request(
-        {
-          hostname: hosts[0],
-          port: internalPort,
-          path: req.url,
-          method: req.method,
-          headers: req.headers,
-        },
-        proxyRes => {
-          res.writeHead(proxyRes.statusCode, {
-            ...proxyRes.headers,
-            'Access-Control-Allow-Origin': '*',
-          })
-          proxyRes.pipe(res, { end: true })
-        },
-      )
-      req.pipe(proxyReq, { end: true })
+      if (!serveRange(req, res)) {
+        const proxyReq = http.request(
+          {
+            hostname: hosts[0],
+            port: internalPort,
+            path: req.url,
+            method: req.method,
+            headers: req.headers,
+          },
+          proxyRes => {
+            res.writeHead(proxyRes.statusCode, {
+              ...proxyRes.headers,
+              'Access-Control-Allow-Origin': '*',
+            })
+            proxyRes.pipe(res, { end: true })
+          },
+        )
+        req.pipe(proxyReq, { end: true })
+      }
     })
     .listen(PORT)
 

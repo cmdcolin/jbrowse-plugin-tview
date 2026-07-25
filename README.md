@@ -11,6 +11,17 @@ are padded so the reference columns still line up.
 
 ## Gallery
 
+![tview expanding a non-reference insertion](img/tview-insertion.png)
+
+The same reads at `ctgA:15,140..15,190`, twice. In the pileup above, the 1bp
+insertion at 15,163 is collapsed into a column of purple `(1)` markers. In the
+tview panel below it gets a real column (highlighted): reads carrying the
+insertion show their base, reads that span the position without it show `-`, and
+reads that do not cover it show `.` — so every row stays the same width and the
+reference columns still line up.
+
+Regenerate with `pnpm figure`.
+
 ![](img/1.png)
 
 TView plugin running in JBrowse 2
