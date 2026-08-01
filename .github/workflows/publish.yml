@@ -1,5 +1,14 @@
 name: Publish
 
+# Publishes on the v* tag that `pnpm version patch` pushes (via the postversion
+# hook). Uses npm trusted publishing (OIDC) — no NPM_TOKEN secret required.
+#
+# One-time setup on npmjs.com, after the first version has been published:
+# package settings > Trusted Publishers > GitHub Actions, repository
+# cmdcolin/jbrowse-plugin-tview, workflow publish.yml. OIDC cannot publish a
+# package's initial version (npm/cli#8544), so v2.0.4 has to go out once from a
+# token or a local `npm login` before the trusted publisher can be configured.
+
 on:
   push:
     tags:
@@ -22,6 +31,8 @@ jobs:
           node-version: 24.x
           cache: pnpm
           registry-url: 'https://registry.npmjs.org'
+      # trusted publishing (OIDC) requires npm >= 11.5.1
+      - run: npm install -g npm@latest
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - run: pnpm publish --access public --provenance --no-git-checks
+      - run: npm publish --provenance --access public

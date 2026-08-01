@@ -31,7 +31,7 @@
     "prefigure": "pnpm pretest:e2e",
     "figure": "node scripts/figure.mjs",
     "prepack": "pnpm build",
-    "preversion": "pnpm lint",
+    "preversion": "pnpm lint && pnpm build",
     "version": "node scripts/version.mjs",
     "postversion": "git push --follow-tags"
   },
