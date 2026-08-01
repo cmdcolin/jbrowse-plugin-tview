@@ -162,9 +162,119 @@ describe('tview plugin in jbrowse-web', () => {
       () => /samtools tview/i.test(document.body.innerText),
       { timeout: 30_000 },
     )
-    const text = await page.evaluate(() => document.body.innerText)
-    expect(text).toMatch(/ctgA:1,000\.\.1,200/)
+    // the exact end depends on how the view snaps bp to the pixel grid, so
+    // derive it the way the dialog does rather than pinning a literal
+    const { text, expected } = await page.evaluate(() => {
+      const b = window.JBrowseSession.views[0].dynamicBlocks.contentBlocks[0]
+      const n = (x: number) => x.toLocaleString('en-US')
+      return {
+        text: document.body.innerText,
+        expected: `${b.refName}:${n(Math.floor(b.start) + 1)}..${n(Math.ceil(b.end))}`,
+      }
+    })
+    expect(expected).toMatch(/^ctgA:1,000\.\./)
+    expect(text).toContain(expected)
     await screenshot(page, '02-dialog')
+    await page.close()
+  }, 180_000)
+
+  it('rebuilds the alignment when a restored session drops it', async () => {
+    const { page, errors } = await openJBrowse()
+    await waitForDisplay(page)
+    // react-msaview's DataModel strips data.msa from snapshots over 50kb,
+    // because it expects an msaFilehandle to reload from. tview has none, so
+    // the view has to re-run CoreGetFeatures off its persisted msaSource.
+    await page.evaluate(async () => {
+      await window.JBrowseSession.views[0].navToLocString(
+        'ctgA:1..2000',
+        'volvox',
+      )
+    })
+    await page.evaluate(() => {
+      window.JBrowseSession.views[0].tracks[0].displays[0]
+        .trackMenuItems()
+        .find(
+          (i: { label: string }) =>
+            i.label === 'Launch tview for visible region',
+        )
+        .onClick()
+    })
+    await page.waitForFunction(
+      () => document.body.innerText.includes('reads with sequence data found'),
+      { timeout: 60_000 },
+    )
+    await page.evaluate(() => {
+      ;[...document.querySelectorAll('button')]
+        .find(b => b.textContent.trim() === 'Submit')
+        ?.click()
+    })
+    await page.waitForFunction(
+      () =>
+        window.JBrowseSession.views.find(
+          (v: { type: string }) => v.type === 'TView',
+        )?.rows.length > 0,
+      { timeout: 60_000 },
+    )
+
+    const built = await page.evaluate(() => {
+      const v = window.JBrowseSession.views.find(
+        (x: { type: string }) => x.type === 'TView',
+      )
+      return {
+        msaChars: v.data.msa.length,
+        rows: v.rows.length,
+        msaSource: v.msaSource,
+        msaSurvivesSnapshot:
+          JSON.parse(JSON.stringify(v)).data.msa !== undefined,
+        snapshot: JSON.parse(JSON.stringify(v)),
+      }
+    })
+    // the premise: this alignment is past the cap, so the snapshot loses it
+    expect(built.msaChars).toBeGreaterThan(50_000)
+    expect(built.msaSurvivesSnapshot).toBe(false)
+    expect(built.msaSource).toEqual({
+      trackId: 'volvox_bam',
+      assemblyName: 'volvox',
+    })
+
+    // recreating the view from that snapshot is what a reload does to it
+    const rowsImmediately = await page.evaluate(snapshot => {
+      const session = window.JBrowseSession
+      for (const v of session.views.filter(
+        (x: { type: string }) => x.type === 'TView',
+      )) {
+        session.removeView(v)
+      }
+      return session.addView('TView', { ...snapshot, id: undefined }).rows
+        .length
+    }, built.snapshot)
+    expect(rowsImmediately).toBe(0)
+
+    await page.waitForFunction(
+      () =>
+        window.JBrowseSession.views.find(
+          (v: { type: string }) => v.type === 'TView',
+        )?.rows.length > 0,
+      { timeout: 60_000 },
+    )
+    const restored = await page.evaluate(() => {
+      const v = window.JBrowseSession.views.find(
+        (x: { type: string }) => x.type === 'TView',
+      )
+      return {
+        rows: v.rows.length,
+        msaChars: v.data.msa.length,
+        numColumns: v.numColumns,
+        rebuildFailed: v.rebuildFailed,
+        colMapsTo: v.colToGenomeRegion(10),
+      }
+    })
+    expect(restored.rebuildFailed).toBe(false)
+    expect(restored.rows).toBe(built.rows)
+    expect(restored.msaChars).toBe(built.msaChars)
+    expect(restored.numColumns).toBe(2000)
+    expect(restored.colMapsTo).toEqual({ refName: 'ctgA', start: 10, end: 11 })
+    expect(errors.filter(e => /TView|tview/i.test(e))).toEqual([])
     await page.close()
   }, 180_000)
 
@@ -275,8 +385,12 @@ describe('tview plugin in jbrowse-web', () => {
         columnToRefPos: v.columnToRefPos,
         insertionColumnRegion: v.colToGenomeRegion(4),
         connectedViewFound: !!v.connectedView,
+        // the view hamburger renders menuItems(); react-msaview's
+        // extraViewMenuItems() has no caller, so an override there is invisible
+        menuLabels: v.menuItems().map((i: { label: string }) => i.label),
       }
     })
+    expect(state.menuLabels).toContain('Zoom to base level on click?')
     expect(state.rowNames).toEqual(['r1', 'r2', 'r3'])
     expect(state.numColumns).toBe(9)
     expect(state.columnToRefPos).toEqual([0, 1, 2, 3, 3, 3, 3, 4, 5])

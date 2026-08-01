@@ -68,6 +68,24 @@ export function parseRead(feature: AlignmentFeature, name: string): ReadLayout {
 }
 
 /**
+ * Reads are fetched by overlap, so they carry insertions on either side of the
+ * region. Those get no columns and are never rendered, so dropping them keeps
+ * the pairwise alignment below off the wasted sites entirely.
+ */
+export function clipInsertions(
+  reads: ReadLayout[],
+  start: number,
+  end: number,
+) {
+  return reads.map(read => ({
+    ...read,
+    insertions: new Map(
+      [...read.insertions].filter(([pos]) => pos >= start && pos < end),
+    ),
+  }))
+}
+
+/**
  * Mutually aligns the sequences inserted at each reference position, so reads
  * sharing an insertion event line up inside it. Sites the aligner declines are
  * returned unchanged and stay left-justified.
@@ -217,7 +235,11 @@ export function planTviewMsa({
 }): TviewPlan {
   const names = getReadNames(features)
   const reads = alignInsertionColumns(
-    features.map((f, i) => parseRead(f, names[i]!)).sort(byStart),
+    clipInsertions(
+      features.map((f, i) => parseRead(f, names[i]!)).sort(byStart),
+      start,
+      end,
+    ),
   )
   const insWidths = maxInsertionWidths(reads)
   const layout = buildColumnLayout(start, end, insWidths)
@@ -225,11 +247,7 @@ export function planTviewMsa({
   return {
     reads,
     layout,
-    // only in-region insertions produce columns, so anything else would be
-    // dead weight in the persisted state model
-    insertionWidths: [...insWidths.entries()]
-      .filter(([pos]) => pos >= start && pos < end)
-      .sort((a, b) => a[0] - b[0]),
+    insertionWidths: [...insWidths.entries()].sort((a, b) => a[0] - b[0]),
     region: { refName, start, end },
     cellCount: reads.length * layout.totalColumns,
   }
