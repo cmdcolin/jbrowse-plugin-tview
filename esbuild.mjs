@@ -47,16 +47,24 @@ const rebuildLogPlugin = {
   },
 }
 
+// @mui/material/SvgIcon's exported SHAPE differs across the MUI majors that
+// hosts bundle: released hosts (MUI 7) expose it as the SvgIcon component
+// itself ($$typeof, render, displayName), while MUI 9 also hangs
+// createSvgIcon off it, which @mui/icons-material v9 calls. Externalizing it
+// means the bundle throws "createSvgIcon is not a function" while
+// evaluating, so its global is never defined and PluginLoader's Promise.all
+// rejects, error-paging every host (see jbrowse-plugin-msaview 2.7.0/2.7.1).
+// Bundling it instead works on both MUI generations.
+const SHAPE_VARIES_BY_HOST = new Set(['@mui/material/SvgIcon'])
+const globals = JBrowseReExports.filter(x => !SHAPE_VARIES_BY_HOST.has(x))
+
 const config = {
   entryPoints: ['src/index.ts'],
   bundle: true,
   // JBrowse reads this off window after the UMD script loads
   globalName: 'JBrowsePluginTView',
   metafile: true,
-  plugins: [
-    globalExternals(createGlobalMap(JBrowseReExports)),
-    rebuildLogPlugin,
-  ],
+  plugins: [globalExternals(createGlobalMap(globals)), rebuildLogPlugin],
   ...(isWatch
     ? { outfile: 'dist/out.js' }
     : {
