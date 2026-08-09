@@ -5,6 +5,7 @@ import {
   alignPeriodicInsertions,
   consensusUnit,
   detectPeriod,
+  unitIdentity,
 } from '../src/LaunchTView/align'
 
 function widths(result: Map<string, string>) {
@@ -175,5 +176,49 @@ describe('alignPeriodicInsertions', () => {
         'ACGTTGCAAGGCTTACGATCCGATTACAGG',
       ]),
     ).toBeUndefined()
+  })
+})
+
+describe('unitIdentity', () => {
+  it('scores a clean run of copies at 1', () => {
+    expect(unitIdentity('CTG'.repeat(13), 'CTG')).toBe(1)
+  })
+
+  it('scores a run that starts mid-copy at 1', () => {
+    // the aligner anchors an insertion where it likes, so an inserted run of
+    // copies routinely starts out of phase with the reference's own first copy
+    expect(unitIdentity(`G${'CTG'.repeat(12)}CT`, 'CTG')).toBe(1)
+  })
+
+  it('scores the FMR1 allele the aligner placed outside the array', () => {
+    // 32bp of CGG carrying the locus's own AGG interruptions, anchored 2bp
+    // before the array; the number to beat is what unrelated sequence scores
+    expect(
+      unitIdentity('CGCGCGGCGGCGGCGGCGGCGGCGCGGAGGCG', 'GCG'),
+    ).toBeGreaterThan(0.9)
+  })
+
+  it('scores a VNTR run whose copies vary in length', () => {
+    const unit = 'CCCCCCACCACTCCCTCCCCGTGAG'
+    const ins =
+      'CCCCGTGAGCTGCCCCCACCACTCCCTCCCTGTGAGCCCCCCACCACTCCCTCCCCGTGAGCTGCCCCCACCACTCCCTCCCTGTGAGCCCCCCACCACTCCCTCCC'
+    expect(unitIdentity(ins, unit)).toBeGreaterThan(0.9)
+  })
+
+  it('declines sequence that is not the unit', () => {
+    // an Alu head, random sequence, and a neighbouring trinucleotide repeat:
+    // the closest of the three still leaves room under the 0.8 the caller uses
+    expect(
+      unitIdentity('GGCCGGGCGCGGTGGCTCACGCCTGTAATCCCAGCA', 'GCG'),
+    ).toBeLessThan(0.7)
+    expect(
+      unitIdentity('TACGATCGTAGCTAGCATCGATCGGATCCTAGCATG', 'CTG'),
+    ).toBeLessThan(0.7)
+    expect(unitIdentity('CAG'.repeat(11), 'CTG')).toBeLessThan(0.7)
+  })
+
+  it('declines an empty sequence or an empty unit', () => {
+    expect(unitIdentity('', 'CTG')).toBe(0)
+    expect(unitIdentity('CTGCTG', '')).toBe(0)
   })
 })

@@ -1,4 +1,4 @@
-import { alignToUnit } from './align'
+import { alignToUnit, unitIdentity } from './align'
 
 import type { ReadLayout } from './readLayout'
 import type { ReferenceArray } from './repeats'
@@ -77,6 +77,103 @@ export function arrayInsertionKeys(array: { start: number; end: number }) {
     ret.push(pos)
   }
   return ret
+}
+
+/**
+ * How far outside an array an insertion of its own unit can be anchored, in
+ * copies. An indel made of repeat units has no unique placement inside the
+ * array, and the flanking bases let the aligner carry it a little further still
+ * — but only about a copy, because past that the sequence either side stops
+ * matching. Every misplaced repeat allele in the trio sits within one copy of
+ * the edge: ATXN3's at 1bp, FMR1's at 2bp of a 3bp unit, ABCA7's at 19bp of a
+ * 25bp one.
+ */
+const ABSORB_COPIES = 1
+
+/**
+ * How much of the inserted sequence the array's unit has to explain before the
+ * insertion counts as part of the array. The repeat alleles the aligner
+ * anchored just outside an array in the trio score 0.94-1.00 here and unrelated
+ * sequence scores 0.67 or below, so this sits in open space rather than on a
+ * boundary.
+ */
+const ABSORB_IDENTITY = 0.8
+
+/**
+ * Widen each array to cover the insertions the aligner anchored just outside it
+ * that are made of the array's own unit.
+ *
+ * An allele is measured over a reference interval, which fixes the "one array
+ * reports as several sites" problem for indels the aligner placed *inside* the
+ * interval. It does not fix the ones it placed just outside: an aligner is free
+ * to anchor an expansion at the base before the array starts, and there the
+ * insertion is not part of any allele — it is left to become its own run of
+ * insertion columns, and the read it belongs to is measured as if it carried
+ * the reference allele. Both halves of that are wrong, and they are not rare:
+ * at ATXN3 the aligner anchored 60 of 162 reads' expansions one base outside
+ * the array, and at ABCA7 a 1207bp allele 19 bases outside.
+ *
+ * What is absorbed is decided by the inserted sequence, not by the count of
+ * reads carrying it — a single read's expansion is as real as fifty, and the
+ * whole point of measuring over an interval is that it does not need a vote.
+ * Widening the interval costs every row the few reference bases in between,
+ * which they all pay equally, so the counts stay comparable.
+ */
+export function absorbAdjacentInsertions(
+  reads: ReadLayout[],
+  arrays: ReferenceArray[],
+) {
+  const ordered = [...arrays].sort((a, b) => a.start - b.start)
+  // the widened end of the array to the left, which the next one may not reach
+  let previousEnd = -Infinity
+  return ordered.map((array, i) => {
+    const margin = ABSORB_COPIES * array.period
+    // Two arrays that met at a position would read the same insertion slot
+    // twice — once as each one's allele — so they are held apart on both
+    // sides: leftwards off whatever the previous array grew to, rightwards off
+    // where the next one starts, which is as far left as that one can be
+    // pushed in turn. Neither bound can cross the array's own edges, since
+    // mergeArrays has already left a gap between every pair.
+    const floor = Math.max(array.start - margin, previousEnd + 1)
+    const ceiling = Math.min(
+      array.end + margin,
+      (ordered[i + 1]?.start ?? Infinity) - 1,
+    )
+    let { start, end } = array
+    // memoized per distinct insert: one locus routinely has dozens of reads
+    // carrying the same allele at the same site
+    const belongs = new Map<string, boolean>()
+    const isUnit = (ins: string) => {
+      let ret = belongs.get(ins)
+      if (ret === undefined) {
+        ret = unitIdentity(ins, array.unit) >= ABSORB_IDENTITY
+        belongs.set(ins, ret)
+      }
+      return ret
+    }
+    for (const read of reads) {
+      for (const [pos, ins] of read.insertions) {
+        // a whole copy at least: a base or two of read error next to an array
+        // says nothing about where the array ends, and moving the interval for
+        // it would lay flanking sequence out as repeat copies
+        if (
+          ins.length < array.period ||
+          pos < floor ||
+          pos > ceiling ||
+          (pos >= array.start && pos <= array.end) ||
+          !isUnit(ins)
+        ) {
+          continue
+        }
+        start = Math.min(start, pos)
+        // an insertion is keyed to the position it precedes, and extractAllele
+        // reads the slot at `end`, so covering it means reaching that position
+        end = Math.max(end, pos)
+      }
+    }
+    previousEnd = end
+    return { ...array, start, end }
+  })
 }
 
 /**

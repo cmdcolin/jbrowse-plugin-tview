@@ -301,6 +301,69 @@ function splitIntoUnits(seq: string, consensus: string) {
   return units
 }
 
+// The tiled alignment below is O(len * len), so it scores a prefix rather than
+// the whole insert. A sequence that is copies of the unit for its first 300
+// bases is copies of the unit.
+const IDENTITY_PROBE_LEN = 300
+
+/**
+ * How much of `seq` is explained by `unit` repeated end to end: the fraction of
+ * `seq`'s bases that align to a matching base of the tiling.
+ *
+ * Free at both ends of the tiling, since an inserted run of copies can start
+ * and stop mid-copy, and global on `seq`, since the question is about all of it.
+ * That is what separates "more copies of this array" from "something else that
+ * landed next to it" without asking the sequence to be in phase with the unit:
+ * measured against the trio, the repeat alleles the aligner anchored just
+ * outside an array score 0.94-1.00 and unrelated sequence of the same length
+ * scores 0.67 or below.
+ */
+export function unitIdentity(seq: string, unit: string) {
+  const probe =
+    seq.length > IDENTITY_PROBE_LEN ? seq.slice(0, IDENTITY_PROBE_LEN) : seq
+  const n = probe.length
+  if (!n || !unit.length) {
+    return 0
+  }
+  // two spare copies so the alignment can start mid-copy and still run off the
+  // end without paying for it
+  const tile = unit.repeat(Math.ceil(n / unit.length) + 2)
+  const m = tile.length
+  const stride = m + 1
+  const score = new Int32Array((n + 1) * stride)
+  const matches = new Int32Array((n + 1) * stride)
+  // row 0 stays zero: starting anywhere in the tiling is free
+  for (let i = 1; i <= n; i++) {
+    score[i * stride] = i * GAP
+  }
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      const hit = probe[i - 1] === tile[j - 1]
+      const diagonal =
+        score[(i - 1) * stride + j - 1]! + (hit ? MATCH : MISMATCH)
+      const up = score[(i - 1) * stride + j]! + GAP
+      const left = score[i * stride + j - 1]! + GAP
+      const best = Math.max(diagonal, up, left)
+      score[i * stride + j] = best
+      matches[i * stride + j] =
+        best === diagonal
+          ? matches[(i - 1) * stride + j - 1]! + (hit ? 1 : 0)
+          : best === up
+            ? matches[(i - 1) * stride + j]!
+            : matches[i * stride + j - 1]!
+    }
+  }
+  let best = score[n * stride]!
+  let bestMatches = matches[n * stride]!
+  for (let j = 1; j <= m; j++) {
+    if (score[n * stride + j]! > best) {
+      best = score[n * stride + j]!
+      bestMatches = matches[n * stride + j]!
+    }
+  }
+  return bestMatches / n
+}
+
 export interface PeriodicAlignment {
   /** repeat unit length in bp */
   period: number

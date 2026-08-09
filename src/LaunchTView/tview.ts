@@ -1,5 +1,5 @@
 import { alignInsertionSite } from './align'
-import { buildArrayBlocks } from './alleles'
+import { absorbAdjacentInsertions, buildArrayBlocks } from './alleles'
 import {
   ABSENT,
   SPANNED_GAP,
@@ -311,10 +311,16 @@ export function planTviewMsa({
     end,
   )
 
+  // the interval comes from the reference, then widens over the repeat alleles
+  // the aligner anchored just outside it — see absorbAdjacentInsertions, which
+  // has to see the reads and so cannot live in the reference scan
   const arrays = sequence
     ? buildArrayBlocks(
         clipped,
-        mergeArrays(findReferenceArrays(sequence, start)),
+        absorbAdjacentInsertions(
+          clipped,
+          mergeArrays(findReferenceArrays(sequence, start)),
+        ),
       )
     : []
   const ownedByArray = new Set<number>()
