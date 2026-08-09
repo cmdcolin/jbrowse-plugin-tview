@@ -33,7 +33,10 @@
     "prepack": "pnpm build",
     "preversion": "pnpm lint && pnpm build",
     "version": "node scripts/version.mjs",
-    "postversion": "git push --follow-tags"
+    "postversion": "git push --follow-tags",
+    "figures:repeats": "node scripts/repeat-figures.mjs",
+    "prefigures:repeats": "pnpm pretest:e2e",
+    "qc:repeats": "tsx test/liveRepeats.qc.ts"
   },
   "jbrowse-plugin": {
     "name": "TView"
