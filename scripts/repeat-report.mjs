@@ -7,11 +7,17 @@
 //     --bam HG002=/path/to/HG002.bam \
 //     --bam HG003=https://host/HG003.bam \
 //     --loc chrX:146,993,400-146,993,800 \
-//     --genome hg19 --ref-name X
+//     --genome hg19 --ref-name X \
+//     --fasta /path/to/hs37d5.fa                 instead of the UCSC API
+//     --figure img/fmr1.png                      and a picture of the view
 //
 // The arrays are found in the reference and every file's reads are measured
 // over the same intervals, so the copy counts are comparable across the files
 // given rather than being one call per file that has to be reconciled after.
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { captureFigures, writeAdhocConfig } from './lib/capture.mjs'
 import { GENOME, LOCI, TRIO, TRIO_REPORT_ORDER } from './lib/giabTrio.mjs'
 import { measureLoci } from './lib/measure.mjs'
 
@@ -49,6 +55,10 @@ function parseArgs(argv) {
       ret.genome = value()
     } else if (arg === '--ref-name') {
       ret.refName = value()
+    } else if (arg === '--fasta') {
+      ret.fasta = value()
+    } else if (arg === '--figure') {
+      ret.figure = value()
     } else {
       throw new Error(`unknown argument ${arg}`)
     }
@@ -133,6 +143,7 @@ const measurements = await measureLoci({
   loci,
   sources,
   genome: args.genome ?? GENOME,
+  fasta: args.fasta,
 })
 
 console.log(
@@ -140,3 +151,47 @@ console.log(
     ? JSON.stringify({ sources, measurements }, null, 2)
     : reportText(measurements, usingTrio ? TRIO_REPORT_ORDER : undefined),
 )
+
+if (args.figure) {
+  // The browser fetches the reads itself rather than being handed what was
+  // measured above, so a figure can only be of files it can reach — which
+  // writeAdhocConfig is what knows.
+  const genome = args.genome ?? GENOME
+  const config = writeAdhocConfig({ genome, sources, fasta: args.fasta })
+  const ext = path.extname(args.figure)
+  // The README's figures carry hand-picked widths because each was looked at.
+  // An arbitrary locus gets its shape from what was just measured instead:
+  // rows and columns are known before the browser opens, so the view can be
+  // sized to them rather than started at a default and grown from the outside.
+  const { failed } = await captureFigures(
+    measurements.map((m, i) => {
+      const rowHeight = Math.min(20, Math.max(6, Math.round(700 / m.rows)))
+      const colWidth = Math.min(8, Math.max(1, Math.floor(2400 / m.columns)))
+      return {
+        name: m.locus.name,
+        assembly: genome,
+        config,
+        // one figure per locus, so several of them need somewhere each to go
+        out:
+          measurements.length === 1
+            ? args.figure
+            : `${args.figure.slice(0, -ext.length || undefined)}-${i + 1}${ext}`,
+        loc: `${m.locus.chrom}:${m.locus.start + 1}..${m.locus.end}`,
+        tracks: sources.map(s => s.id),
+        colWidth,
+        rowHeight,
+        // the rows and a row of slack, plus room for the toolbar and the
+        // conservation track above them; the harness fits the window to
+        // whatever this turns out to be
+        height: (m.rows + 1) * rowHeight + 240,
+        // read names are long and labelsAlignRight overflows them leftwards,
+        // so this is what has to hold them
+        treeAreaWidth: 440,
+      }
+    }),
+  )
+  fs.rmSync(config.replace(/^\.\.\//, ''), { force: true })
+  if (failed.length) {
+    process.exitCode = 1
+  }
+}

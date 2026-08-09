@@ -36,7 +36,6 @@
     "postversion": "git push --follow-tags",
     "figures:repeats": "node scripts/repeat-figures.mjs",
     "prefigures:repeats": "pnpm pretest:e2e",
-    "qc:repeats": "tsx test/liveRepeats.qc.ts",
     "report:repeats": "tsx scripts/repeat-report.mjs",
     "readme:repeats": "tsx scripts/repeat-readme.mjs"
   },
@@ -52,6 +51,7 @@
     "@eslint/js": "^10.0.1",
     "@fal-works/esbuild-plugin-global-externals": "^2.1.2",
     "@gmod/bam": "^8.3.0",
+    "@gmod/indexedfasta": "^5.0.9",
     "@jbrowse/core": "^4.3.0",
     "@jbrowse/mobx-state-tree": "^6.1.0",
     "@jbrowse/plugin-linear-genome-view": "^4.3.0",
@@ -76,7 +76,7 @@
     "rimraf": "^6.1.3",
     "tss-react": "^4.9.21",
     "tsx": "^4.20.6",
-    "typescript": "^7.0.2",
+    "typescript": "^6.0.2",
     "typescript-eslint": "^8.66.0",
     "vitest": "^4.1.10"
   }

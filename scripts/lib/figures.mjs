@@ -5,11 +5,12 @@
  * are the same definition — the numbers the README states about a figure are of
  * the window the figure is of.
  */
-import { TRIO } from './giabTrio.mjs'
+import { GENOME, TRIO } from './giabTrio.mjs'
 
 const ALL = TRIO.map(t => t.id)
 
-export const SAMPLE_NAMES = {
+/** the row labels, which are what the tree is drawn of */
+const SAMPLE_NAMES = {
   HG002: 'HG002_son',
   HG003: 'HG003_father',
   HG004: 'HG004_mother',
@@ -75,5 +76,7 @@ export const FIGURES = [
   },
 ].map(figure => ({
   ...figure,
+  assembly: GENOME,
+  samples: SAMPLE_NAMES,
   locus: locus(figure.name, figure.loc, figure.refName),
 }))

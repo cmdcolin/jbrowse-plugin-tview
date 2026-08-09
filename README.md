@@ -71,6 +71,7 @@ inside, minus what it deleted. Everything else follows from that:
   read's misplacement stays that read's; widening it instead made a single
   spurious copy anchored two bases early move the array's left edge for every
   row, and the reference's own copy count with it.
+
 - **Every spanning read is counted**, including the ones that match the
   reference exactly — usually the commonest allele, and invisible to anything
   keyed on insertions.
@@ -101,17 +102,20 @@ is sound; reading across two is a hypothesis.
 known loci with the same plan builder the view runs. **Every number in this
 section is written by `pnpm readme:repeats` and checked by
 `pnpm readme:repeats --check`**, so it is a rendering of a measurement rather
-than a figure typed once that nothing afterwards could contradict.
+than a figure typed once that nothing afterwards could contradict. The
+`Measurements` workflow runs that check weekly and whenever the plan builder
+changes; it is kept out of Integration and out of `preversion` because a GIAB
+outage is not a reason a commit cannot land or a release cannot go out.
 
 An allele is a copy count carrying at least 15% of a sample's spanning reads,
 and never one read. Reads scatter around an allele, so a count also collects the
-reads in its skirt: those within a tenth of its size that carry less than a third
-of its support. Both halves are needed — no distance separates FMR1's mother's
-two alleles, which are one copy apart, from HTT's single allele with a shoulder
-one copy either side, and relative support does. That is a report of what the
-reads say and not a genotype call — it knows no ploidy, so a homozygote and a
-haploid locus both come back as one number. Read that way, every locus with
-variation to check is Mendelian:
+reads in its skirt: those within a tenth of its size that carry less than a
+third of its support. Both halves are needed — no distance separates FMR1's
+mother's two alleles, which are one copy apart, from HTT's single allele with a
+shoulder one copy either side, and relative support does. That is a report of
+what the reads say and not a genotype call — it knows no ploidy, so a homozygote
+and a haploid locus both come back as one number. Read that way, every locus
+with variation to check is Mendelian:
 
 <!-- repeat-genotypes -->
 
@@ -162,6 +166,12 @@ mother with two, with the son's allele one of hers.
 The off-allele reads at ABCA7 are the same handful the row before it is measured
 on, which is what "noisy" means at that locus rather than a proportion to
 compare with the STRs above.
+
+They are still real sequence. HG003's long alleles were read back at base level:
+the 1,207bp and 764bp insertions the aligner anchored 19bp outside the array are
+the VNTR's own 25bp unit, entered at offset 6 — expansions, not a chimeric join
+or a mismapping, which is why re-filing them under the array rather than leaving
+them beside it is what the count depends on.
 
 ### Several samples at once
 
@@ -276,14 +286,35 @@ pnpm lint
 pnpm build
 
 pnpm figures:repeats  # the tandem-repeat figures in img/
-pnpm qc:repeats       # copy numbers at known loci, from live GIAB data
+pnpm report:repeats   # copy numbers at known loci, from live GIAB data
 ```
 
-`qc:repeats` is not a test. It fetches from GIAB and UCSC and prints what the
-plan builder measured at each locus, per sample, so the numbers can be read
+`report:repeats` is not a test. It fetches from GIAB and UCSC and prints what
+the plan builder measured at each locus, per sample, so the numbers can be read
 against what the locus is known to carry — Mendelian consistency across the
 trio, hemizygosity on the X, published allele ranges. The loci and samples live
-in `test/liveRepeatsData.ts`.
+in `scripts/lib/giabTrio.mjs`, which the figures are defined against too, so a
+figure and the numbers beside it cannot be of different windows.
+
+It measures whatever it is pointed at, and can photograph it with the same
+harness the figures above use:
+
+```bash
+pnpm report:repeats \
+  --bam HG002=https://host/HG002.bam \
+  --loc chrX:146,993,530..146,993,670 \
+  --genome hg19 --ref-name X \
+  --figure img/fmr1.png
+```
+
+`--genome` is a UCSC genome: the reference bases come from the UCSC API and, for
+`--figure`, the browser's assembly is built from UCSC's 2bit and chromAlias, so
+`--ref-name` is only about what the BAM calls the same sequence.
+`--fasta <indexed.fa>` reads them off disk instead, which is what a reference
+UCSC does not host needs — there are no aliases to be had that way, so the locus
+has to be written the way the FASTA names it. A figure can only be taken of
+files the browser can load: a url, or a path under the repo, which is what the
+dev server serves.
 
 `pnpm start` serves the repo root, so a JBrowse instance unpacked at
 `.test-jbrowse` can load the plugin from the same origin via

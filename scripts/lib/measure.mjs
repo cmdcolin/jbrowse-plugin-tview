@@ -6,6 +6,7 @@
  * measurement rather than two measurements that ought to agree.
  */
 import { BamFile } from '@gmod/bam'
+import { BgzipIndexedFasta, IndexedFasta } from '@gmod/indexedfasta'
 
 import { summarizePlan } from '../../src/LaunchTView/repeatStats'
 import { planTviewMsa } from '../../src/LaunchTView/tview'
@@ -29,6 +30,47 @@ export async function referenceSequence({ genome, chrom, start, end }) {
     throw new Error(`UCSC sequence ${genome} ${chrom}: ${JSON.stringify(json)}`)
   }
   return json.dna.toUpperCase()
+}
+
+/**
+ * The same bases from an indexed FASTA on disk.
+ *
+ * A FASTA is the reference the BAM was aligned to, so it is the BAM's spelling
+ * of a reference name that will be in it — `refName` — where UCSC wants
+ * `chrom`. Either is accepted, because a locus written in UCSC's spelling
+ * against a FASTA that agrees is the ordinary case and should not need
+ * --ref-name to say so twice.
+ */
+function fastaSequence(uri) {
+  const opts = { path: uri, faiPath: `${uri}.fai` }
+  const fasta = /\.b?gz$/.test(uri)
+    ? new BgzipIndexedFasta({ ...opts, gziPath: `${uri}.gzi` })
+    : new IndexedFasta(opts)
+  return async ({ chrom, refName, start, end }) => {
+    const names = await fasta.getSequenceNames()
+    const name = [refName, chrom].find(n => names.includes(n))
+    if (name === undefined) {
+      throw new Error(
+        `${uri} has no sequence named ${refName} or ${chrom}; it has ` +
+          `${names.length} including ${names.slice(0, 5).join(', ')}`,
+      )
+    }
+    const seq = await fasta.getSequence(name, start, end)
+    if (!seq) {
+      throw new Error(`${uri} has no bases at ${name}:${start}-${end}`)
+    }
+    return seq.toUpperCase()
+  }
+}
+
+/**
+ * Where the reference bases for a locus come from: a local indexed FASTA if one
+ * was given, and otherwise the UCSC API, which needs no local files at all.
+ */
+export function referenceReader({ genome, fasta }) {
+  return fasta
+    ? fastaSequence(fasta)
+    : locus => referenceSequence({ genome, ...locus })
 }
 
 /** Every read overlapping the region, in the shape the layout reads them in. */
@@ -62,8 +104,8 @@ export async function fetchReads({ uri, refName, start, end }) {
  * `sources` are `{ id, uri }`; the id becomes the row prefix and the clade
  * label, which is what makes the per-sample numbers below separable at all.
  */
-export async function measureLocus({ locus, sources, genome }) {
-  const sequence = await referenceSequence({ genome, ...locus })
+export async function measureLocus({ locus, sources, sequenceOf }) {
+  const sequence = await sequenceOf(locus)
   const perSource = []
   for (const source of sources) {
     perSource.push(await fetchReads({ uri: source.uri, ...locus }))
@@ -89,10 +131,11 @@ export async function measureLocus({ locus, sources, genome }) {
   }
 }
 
-export async function measureLoci({ loci, sources, genome }) {
+export async function measureLoci({ loci, sources, genome, fasta }) {
+  const sequenceOf = referenceReader({ genome, fasta })
   const ret = []
   for (const locus of loci) {
-    ret.push(await measureLocus({ locus, sources, genome }))
+    ret.push(await measureLocus({ locus, sources, sequenceOf }))
   }
   return ret
 }

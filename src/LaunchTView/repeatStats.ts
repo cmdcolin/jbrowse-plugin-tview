@@ -49,6 +49,10 @@ const SHOULDER_SPREAD = 0.1
  * its allele, and the mother's second allele runs at 87% of her first. The
  * measured shelf is wide — 0.2 leaves reads uncounted, 0.4 starts merging the
  * mother's two alleles into one.
+ *
+ * That shelf is 21 sample-locus calls in one trio, which is a shelf and not a
+ * proof: a locus carrying three real alleles within a copy of each other would
+ * defeat the rule, and this trio has none.
  */
 const SHOULDER_SUPPORT = 0.3
 
