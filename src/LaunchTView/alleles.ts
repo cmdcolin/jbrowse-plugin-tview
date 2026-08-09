@@ -71,99 +71,216 @@ export function extractAllele(read: ReadLayout, start: number, end: number) {
 }
 
 /**
- * How far outside an array an insertion of its own unit can be anchored, in
- * copies. An indel made of repeat units has no unique placement inside the
- * array, and the flanking bases let the aligner carry it a little further still
- * — but only about a copy, because past that the sequence either side stops
- * matching. Every misplaced repeat allele in the trio sits within one copy of
- * the edge: ATXN3's at 1bp, FMR1's at 2bp of a 3bp unit, ABCA7's at 19bp of a
+ * How far outside an array an insertion is looked for, in reference bases.
+ *
+ * GIAB's adotto tandem repeat catalog buffers every interval by +/-25bp before
+ * merging, to leave room for the alignment ambiguity that comes with capturing
+ * variation inside a repeat, and measured what the buffer misses: re-expanding
+ * every region by a further 10bp would move only 0.2% of its boundaries
+ * (English et al., Nat Biotechnol 42, 2024, doi:10.1038/s41587-024-02225-z). A
+ * whole copy is the floor for a unit longer than that, since a copy is the
+ * aligner's room to slide a repeat indel. Both cover the misplacements measured
+ * in this trio: ATXN3 at 1bp, FMR1 at 2bp of a 3bp unit, ABCA7 at 19bp of a
  * 25bp one.
+ *
+ * It bounds the search, not the answer. Whether an insertion actually moves is
+ * decided exactly, by `shiftInsertion`, so this being generous costs nothing.
  */
-const ABSORB_COPIES = 1
+const FLANK_BP = 25
+
+/** the read's aligned base at a reference position, if it has one there */
+function readBase(read: ReadLayout, pos: number) {
+  const i = pos - read.start
+  return i >= 0 && i < read.refChars.length ? read.refChars[i] : undefined
+}
 
 /**
- * How much of the inserted sequence the array's unit has to explain before the
- * insertion counts as part of the array. The repeat alleles the aligner
- * anchored just outside an array in the trio score 0.94-1.00 here and unrelated
- * sequence scores 0.67 or below, so this sits in open space rather than on a
- * boundary.
+ * How much of an insertion the array's unit has to explain before it counts as
+ * the array's. The repeat alleles the aligner anchored just outside an array in
+ * the trio score 0.9 and up, and unrelated sequence scores 0.67 or below, so
+ * this sits in open space rather than on a boundary.
  */
-const ABSORB_IDENTITY = 0.8
+const BELONGS_IDENTITY = 0.8
 
 /**
- * Widen each array to cover the insertions the aligner anchored just outside it
- * that are made of the array's own unit.
+ * `ins`, inserted before reference position `from`, rewritten as an insertion
+ * before `to` — or undefined when the read's own bases do not allow it.
  *
- * An allele is measured over a reference interval, which fixes the "one array
- * reports as several sites" problem for indels the aligner placed *inside* the
- * interval. It does not fix the ones it placed just outside: an aligner is free
- * to anchor an expansion at the base before the array starts, and there the
- * insertion is not part of any allele — it is left to become its own run of
- * insertion columns, and the read it belongs to is measured as if it carried
- * the reference allele. Both halves of that are wrong, and they are not rare:
- * at ATXN3 the aligner anchored 60 of 162 reads' expansions one base outside
- * the array, and at ABCA7 a 1207bp allele 19 bases outside.
+ * An insertion has no unique position. `S` before a base `b` and `rotate(S)`
+ * after it spell the same read, so an aligner is free to anchor an expansion
+ * outside the array it belongs to, and at ATXN3 it did exactly that for most of
+ * the reads carrying one. Walking an indel through that equivalence class is
+ * the standard normalization for it (Tan, Abecasis & Kang, "Unified
+ * representation of genetic variants", Bioinformatics 31, 2015,
+ * doi:10.1093/bioinformatics/btv112, which walks left; this walks toward the
+ * array, the same operation with the array as the canonical anchor).
  *
- * What is absorbed is decided by the inserted sequence, not by the count of
- * reads carrying it — a single read's expansion is as real as fifty, and the
- * whole point of measuring over an interval is that it does not need a vote.
- * Widening the interval costs every row the few reference bases in between,
- * which they all pay equally, so the counts stay comparable.
+ * The step is tested against the **read's** aligned base rather than the
+ * reference's, which is what makes the rewrite exact: the row still renders
+ * base for base as it did, and the only thing that changes is the reference
+ * position the bases are filed under. A step onto a deletion has no base to
+ * swap with and stops.
+ *
+ * Being exact, it is also incomplete, and measurably so. An aligner does not
+ * only choose among equivalent placements — it chooses the highest-scoring one,
+ * which for a repeat allele carrying an interruption is often not equivalent to
+ * any placement inside the array. FMR1's misplaced read is exactly that: 32bp
+ * of the locus's own CGG anchored two bases early, starting on a `C` where the
+ * read has a `G`, so no rewrite of it exists. Hence `reanchorInsertions` treats
+ * this as the preferred spelling and not as the test of whether to move.
  */
-export function absorbAdjacentInsertions(
+export function shiftInsertion(
+  read: ReadLayout,
+  from: number,
+  to: number,
+  ins: string,
+) {
+  let seq = ins
+  for (let pos = from; pos < to; pos++) {
+    const head = seq[0]!
+    if (readBase(read, pos) !== head) {
+      return undefined
+    }
+    seq = seq.slice(1) + head
+  }
+  for (let pos = from - 1; pos >= to; pos--) {
+    const tail = seq.at(-1)!
+    if (readBase(read, pos) !== tail) {
+      return undefined
+    }
+    seq = tail + seq.slice(0, -1)
+  }
+  return seq
+}
+
+/** an array with the span of reference positions whose insertions it may claim */
+interface FlankWindow {
+  array: ReferenceArray
+  from: number
+  to: number
+}
+
+/**
+ * The window around each array that its insertions may be re-anchored from.
+ *
+ * Two arrays may not claim one position: `extractAllele` reads the slot at an
+ * array's `end`, so a shared slot would be counted into two alleles. Neighbours
+ * split the reference between them down the middle — a property of the
+ * reference alone, so unlike the interval it replaces, no read can move it.
+ */
+export function flankWindows(arrays: ReferenceArray[]): FlankWindow[] {
+  const ordered = [...arrays].sort((a, b) => a.start - b.start)
+  return ordered.map((array, i) => {
+    const pad = Math.max(FLANK_BP, array.period)
+    const previous = ordered[i - 1]
+    const next = ordered[i + 1]
+    return {
+      array,
+      from: Math.max(
+        array.start - pad,
+        previous ? Math.floor((previous.end + array.start) / 2) + 1 : -Infinity,
+      ),
+      to: Math.min(
+        array.end + pad,
+        next ? Math.floor((array.end + next.start) / 2) : Infinity,
+      ),
+    }
+  })
+}
+
+/** the array whose window `pos` falls in, if any */
+function windowAt(pos: number, windows: FlankWindow[]) {
+  for (const window of windows) {
+    if (pos < window.from) {
+      return undefined
+    }
+    if (pos <= window.to) {
+      return window
+    }
+  }
+  return undefined
+}
+
+/**
+ * Re-file each read's insertions under the array they belong to, one read at a
+ * time.
+ *
+ * Measuring an allele over a reference interval fixes the "one array reports as
+ * several sites" problem for indels the aligner placed *inside* the interval.
+ * It does not fix the ones placed just outside: there the insertion is part of
+ * no allele — it becomes its own run of insertion columns — and the read
+ * carrying it is measured as though it had the reference allele. Both halves of
+ * that are wrong, and neither is rare: at ATXN3 the aligner anchored 60 of 162
+ * reads' expansions one base outside the array.
+ *
+ * Doing this per read is the whole point. Widening the shared interval instead
+ * — which is what this replaces — made one read's misplacement everyone's: a
+ * single spurious copy anchored two bases early moved the array's left edge for
+ * every row, and the reference's own copy count with it. Re-anchoring touches
+ * only the read that carries the insertion, so a read can be wrong on its own.
+ *
+ * Nothing here consults the other reads, or how many of them agree. A single
+ * read's expansion is as real as fifty, which is what measuring over an
+ * interval buys and what a vote would give back. What decides an insertion is
+ * its own sequence: `unitIdentity` against the array's unit, since the aligner
+ * is free to place a repeat allele outside the array but is not free to make
+ * unrelated sequence out of the array's unit.
+ */
+export function reanchorInsertions(
   reads: ReadLayout[],
   arrays: ReferenceArray[],
 ) {
-  const ordered = [...arrays].sort((a, b) => a.start - b.start)
-  // the widened end of the array to the left, which the next one may not reach
-  let previousEnd = -Infinity
-  return ordered.map((array, i) => {
-    const margin = ABSORB_COPIES * array.period
-    // Two arrays that met at a position would read the same insertion slot
-    // twice — once as each one's allele — so they are held apart on both
-    // sides: leftwards off whatever the previous array grew to, rightwards off
-    // where the next one starts, which is as far left as that one can be
-    // pushed in turn. Neither bound can cross the array's own edges, since
-    // mergeArrays has already left a gap between every pair.
-    const floor = Math.max(array.start - margin, previousEnd + 1)
-    const ceiling = Math.min(
-      array.end + margin,
-      (ordered[i + 1]?.start ?? Infinity) - 1,
-    )
-    let { start, end } = array
-    // memoized per distinct insert: one locus routinely has dozens of reads
-    // carrying the same allele at the same site
-    const belongs = new Map<string, boolean>()
-    const isUnit = (ins: string) => {
-      let ret = belongs.get(ins)
-      if (ret === undefined) {
-        ret = unitIdentity(ins, array.unit) >= ABSORB_IDENTITY
-        belongs.set(ins, ret)
-      }
-      return ret
+  const windows = flankWindows(arrays)
+  if (!windows.length) {
+    return reads
+  }
+  // memoized per array and distinct insert: one locus routinely has dozens of
+  // reads carrying the same allele at the same site
+  const belongs = new Map<string, boolean>()
+  const isUnit = (window: FlankWindow, ins: string) => {
+    const key = `${window.array.start}:${ins}`
+    let ret = belongs.get(key)
+    if (ret === undefined) {
+      ret =
+        // a whole copy at least: a base or two of read error beside an array
+        // says nothing about where its allele ends, and the identity of a
+        // fragment shorter than the unit is not a measurement of anything
+        ins.length >= window.array.period &&
+        unitIdentity(ins, window.array.unit) >= BELONGS_IDENTITY
+      belongs.set(key, ret)
     }
-    for (const read of reads) {
-      for (const [pos, ins] of read.insertions) {
-        // a whole copy at least: a base or two of read error next to an array
-        // says nothing about where the array ends, and moving the interval for
-        // it would lay flanking sequence out as repeat copies
-        if (
-          ins.length < array.period ||
-          pos < floor ||
-          pos > ceiling ||
-          (pos >= array.start && pos <= array.end) ||
-          !isUnit(ins)
-        ) {
-          continue
-        }
-        start = Math.min(start, pos)
-        // an insertion is keyed to the position it precedes, and extractAllele
-        // reads the slot at `end`, so covering it means reaching that position
-        end = Math.max(end, pos)
-      }
+    return ret
+  }
+  return reads.map(read => {
+    if (!read.insertions.size) {
+      return read
     }
-    previousEnd = end
-    return { ...array, start, end }
+    let moved = false
+    const next = new Map<number, string>()
+    // Insertions are re-filed in genomic order of where the aligner put them,
+    // so two events landing in one slot keep their order along the read.
+    for (const [pos, ins] of [...read.insertions].sort((a, b) => a[0] - b[0])) {
+      const window = windowAt(pos, windows)
+      const { start, end } = window?.array ?? {}
+      const target =
+        window === undefined || (pos >= start! && pos <= end!)
+          ? undefined
+          : isUnit(window, ins)
+            ? pos < start!
+              ? start!
+              : end!
+            : undefined
+      // an exact rewrite is preferred where one exists, so a row that can be
+      // re-spelled reads base for base as the aligner wrote it; where none
+      // exists the bases move as written, which preserves the length the
+      // measurement is made of
+      const at = target ?? pos
+      moved ||= target !== undefined
+      const seq =
+        target === undefined ? ins : (shiftInsertion(read, pos, target, ins) ?? ins)
+      next.set(at, (next.get(at) ?? '') + seq)
+    }
+    return moved ? { ...read, insertions: next } : read
   })
 }
 

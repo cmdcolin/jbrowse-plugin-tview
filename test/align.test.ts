@@ -186,12 +186,12 @@ describe('unitIdentity', () => {
 
   it('scores a run that starts mid-copy at 1', () => {
     // the aligner anchors an insertion where it likes, so an inserted run of
-    // copies routinely starts out of phase with the reference's own first copy
+    // copies routinely starts out of phase with the reference own first copy
     expect(unitIdentity(`G${'CTG'.repeat(12)}CT`, 'CTG')).toBe(1)
   })
 
   it('scores the FMR1 allele the aligner placed outside the array', () => {
-    // 32bp of CGG carrying the locus's own AGG interruptions, anchored 2bp
+    // 32bp of CGG carrying the locus own AGG interruptions, anchored 2bp
     // before the array; the number to beat is what unrelated sequence scores
     expect(
       unitIdentity('CGCGCGGCGGCGGCGGCGGCGGCGCGGAGGCG', 'GCG'),
@@ -215,6 +215,14 @@ describe('unitIdentity', () => {
       unitIdentity('TACGATCGTAGCTAGCATCGATCGGATCCTAGCATG', 'CTG'),
     ).toBeLessThan(0.7)
     expect(unitIdentity('CAG'.repeat(11), 'CTG')).toBeLessThan(0.7)
+  })
+
+  it('declines a run of copies with a kilobase of something else after it', () => {
+    // the reason three windows are scored rather than a prefix: this is the
+    // shape of a chimeric read, and scoring only the head calls it 1.00
+    const junk = 'TACGATCGTAGCTAGCATCGATCGGATCCTAGCATG'.repeat(28)
+    expect(unitIdentity('CTG'.repeat(12), 'CTG')).toBe(1)
+    expect(unitIdentity('CTG'.repeat(12) + junk, 'CTG')).toBeLessThan(0.7)
   })
 
   it('declines an empty sequence or an empty unit', () => {

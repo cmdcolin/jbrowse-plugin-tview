@@ -54,15 +54,23 @@ inside, minus what it deleted. Everything else follows from that:
   so an aligner anchors different reads at different positions; measured over an
   interval those choices cancel. ATXN3 in HG002 reported as four separate arrays
   when anchored on insertions, splitting one locus's alleles across four counts.
-- **The interval grows to the allele.** Measuring over an interval settles the
+- **The allele comes to the interval.** Measuring over an interval settles the
   indels an aligner placed _inside_ it. It settles nothing about the ones it
   placed just outside, and an aligner will happily anchor an expansion at the
   base before the array starts: there the insertion belongs to no allele, so it
   becomes a run of columns of its own and the read carrying it is counted as if
-  it matched the reference. An array therefore widens over an insertion within
-  one copy of its edge whose sequence is the array's own unit. At ATXN3 that is
-  60 of 162 reads, and it is the difference between HG004 reading as 8/8 with
-  three odd reads and reading as 8/21.
+  it matched the reference. Each read's insertions are therefore re-filed under
+  the array they belong to before anything is measured — within a flank of 25bp
+  or one copy, whichever is larger, and only where the array's own unit explains
+  the inserted sequence. At ATXN3 that is most of the reads carrying an
+  expansion, and it is the difference between HG004 reading as 8/8 with three
+  odd reads and reading as 8/21.
+
+  Re-filing a read's insertions is not the same as moving the interval, and the
+  difference is the point. The interval is a property of the reference, so one
+  read's misplacement stays that read's; widening it instead made a single
+  spurious copy anchored two bases early move the array's left edge for every
+  row, and the reference's own copy count with it.
 - **Every spanning read is counted**, including the ones that match the
   reference exactly — usually the commonest allele, and invisible to anything
   keyed on insertions.
@@ -95,11 +103,15 @@ section is written by `pnpm readme:repeats` and checked by
 `pnpm readme:repeats --check`**, so it is a rendering of a measurement rather
 than a figure typed once that nothing afterwards could contradict.
 
-A copy count is reported as one of a sample's alleles when at least 15% of that
-sample's spanning reads carry it, and never on one read. That is a report of
-what the reads say and not a genotype call — it knows no ploidy, so a homozygote
-and a haploid locus both come back as one number. Read that way, every locus
-with variation to check is Mendelian:
+An allele is a copy count carrying at least 15% of a sample's spanning reads,
+and never one read. Reads scatter around an allele, so a count also collects the
+reads in its skirt: those within a tenth of its size that carry less than a third
+of its support. Both halves are needed — no distance separates FMR1's mother's
+two alleles, which are one copy apart, from HTT's single allele with a shoulder
+one copy either side, and relative support does. That is a report of what the
+reads say and not a genotype call — it knows no ploidy, so a homozygote and a
+haploid locus both come back as one number. Read that way, every locus with
+variation to check is Mendelian:
 
 <!-- repeat-genotypes -->
 
@@ -109,9 +121,9 @@ with variation to check is Mendelian:
 | ATXN3 (CTG)      | 8   | 15 / 17        | 8 / 21         | 17 / 21     |
 | TCF4 CTG18.1     | 38  | 25 / 46        | 28 / 38        | 28 / 46     |
 | DMPK (CTG)       | 21  | 12 / 14        | 6 / 12         | 12          |
-| FMR1 (CGG), X    | 22  | 31             | 32 / 33        | 33          |
+| FMR1 (CGG), X    | 21  | 30             | 31 / 32        | 32          |
 | C9orf72 (GGGGCC) | 4   | 3              | 3              | 3           |
-| ABCA7 VNTR       | 20  | 21 / 89        | 22 / 26        | 22          |
+| ABCA7 VNTR       | 19  | 20 / 88        | 21 / 25        | 21          |
 
 <!-- /repeat-genotypes -->
 
@@ -137,13 +149,13 @@ mother with two, with the son's allele one of hers.
 
 | locus            | array              | spanning reads | on an allele | off one |
 | ---------------- | ------------------ | -------------- | ------------ | ------- |
-| HTT (CAG)        | 97bp of 3bp unit   | 176            | 148          | 28      |
-| ATXN3 (CTG)      | 25bp of 3bp unit   | 151            | 118          | 33      |
-| TCF4 CTG18.1     | 113bp of 3bp unit  | 169            | 114          | 55      |
-| DMPK (CTG)       | 62bp of 3bp unit   | 129            | 118          | 11      |
-| FMR1 (CGG), X    | 64bp of 3bp unit   | 123            | 109          | 14      |
-| C9orf72 (GGGGCC) | 23bp of 6bp unit   | 210            | 209          | 1       |
-| ABCA7 VNTR       | 485bp of 25bp unit | 27             | 19           | 8       |
+| HTT (CAG)        | 97bp of 3bp unit   | 176            | 176          | 0       |
+| ATXN3 (CTG)      | 24bp of 3bp unit   | 154            | 149          | 5       |
+| TCF4 CTG18.1     | 113bp of 3bp unit  | 169            | 141          | 28      |
+| DMPK (CTG)       | 62bp of 3bp unit   | 129            | 129          | 0       |
+| FMR1 (CGG), X    | 62bp of 3bp unit   | 123            | 122          | 1       |
+| C9orf72 (GGGGCC) | 23bp of 6bp unit   | 210            | 210          | 0       |
+| ABCA7 VNTR       | 466bp of 25bp unit | 27             | 20           | 7       |
 
 <!-- /repeat-spread -->
 
@@ -160,9 +172,10 @@ alignment. Rows are grouped into a clade per sample by a synthetic tree, which
 turns on react-msaview's collapse and show-only controls for free.
 
 The copy numbers are checkable, which is the point of this locus: FMR1 is on the
-X, so the two male samples come back with one allele each (HG002 33, HG003 31)
-and the mother with two (32 and 33) — and the son's single allele is one of his
-mother's, as an X-linked allele has to be.
+X, so the two male samples come back with one allele each and the mother with
+two, and the son's single allele is one of his mother's, as an X-linked allele
+has to be. The counts are in the genotype table above, where they are measured
+rather than typed.
 
 Two things about this figure are settings rather than data, and both are there
 because a column costs the same whether 124 rows use it or one does:
@@ -177,10 +190,10 @@ because a column costs the same whether 124 rows use it or one does:
 
 | figure                             | rows | columns | columns one row has | hidden |
 | ---------------------------------- | ---- | ------- | ------------------- | ------ |
-| [fmr1](img/repeat-fmr1-trio.png)   | 124  | 222     | 29                  | 13%    |
+| [fmr1](img/repeat-fmr1-trio.png)   | 124  | 218     | 24                  | 11%    |
 | [htt](img/repeat-htt-trio.png)     | 182  | 222     | 25                  | 11%    |
-| [atxn3](img/repeat-atxn3-trio.png) | 157  | 159     | 15                  | 9%     |
-| [abca7](img/repeat-abca7-vntr.png) | 16   | 3614    | 1239                | 34%    |
+| [atxn3](img/repeat-atxn3-trio.png) | 157  | 159     | 18                  | 11%    |
+| [abca7](img/repeat-abca7-vntr.png) | 16   | 3630    | 1253                | 35%    |
 
 <!-- /repeat-figures -->
 
