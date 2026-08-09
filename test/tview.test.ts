@@ -5,6 +5,7 @@ import {
   parseCigar,
   parseRead,
   planTviewMsa,
+  renderTviewMsa,
 } from '../src/LaunchTView/tview'
 import {
   buildColumnToRefPos,
@@ -253,6 +254,161 @@ describe('planTviewMsa', () => {
     expect(plan.layout.totalColumns).toBe(9)
     expect(plan.cellCount).toBe(18)
   })
+
+  it('reports no array where the reference carries none', () => {
+    const plan = planTviewMsa({
+      features: [
+        feature({ name: 'r1', start: 0, CIGAR: '3M3I3M', seq: 'AAAGGGCCC' }),
+        feature({ name: 'r2', start: 0, CIGAR: '6M', seq: 'AAACCC' }),
+      ],
+      refName: 'ctgA',
+      start: 0,
+      end: 6,
+      sequence: 'AAACCC',
+    })
+    expect(plan.arrays).toEqual([])
+    expect(plan.subject).toBeUndefined()
+    expect(plan.reads.map(r => r.name)).toEqual(['ctgA', 'r1', 'r2'])
+  })
+})
+
+/**
+ * The array lives in the reference and every read carries a whole allele, which
+ * is what a real STR looks like — reads differ from the reference by an indel
+ * *inside* the array, and the aligner is free to put that indel anywhere.
+ */
+describe('planTviewMsa on a reference tandem array', () => {
+  const UNIT = 'CAG'
+  const FLANK = 'TTGCAGGATC'
+  const REF_COPIES = 10
+  const START = 100
+  const sequence = FLANK + UNIT.repeat(REF_COPIES) + FLANK
+
+  /**
+   * A read carrying `copies` copies, written as an indel at `anchor` bases into
+   * the array — the same allele can be spelled many ways and every spelling has
+   * to measure the same.
+   */
+  function strRead(name: string, copies: number, anchor: number) {
+    const delta = (copies - REF_COPIES) * UNIT.length
+    const arrayStart = START + FLANK.length
+    const seq = FLANK + UNIT.repeat(copies) + FLANK
+    const lead = FLANK.length + anchor
+    const rest = REF_COPIES * UNIT.length - anchor + FLANK.length
+    const cigar =
+      delta > 0
+        ? `${lead}M${delta}I${rest}M`
+        : delta < 0
+          ? `${lead}M${-delta}D${rest + delta}M`
+          : `${sequence.length}M`
+    return {
+      feature: feature({ name, start: START, CIGAR: cigar, seq }),
+      arrayStart,
+    }
+  }
+
+  const reads = [
+    strRead('expanded_early', 14, 3),
+    strRead('expanded_late', 14, 21),
+    strRead('reference_length', 10, 0),
+    strRead('contracted', 7, 6),
+  ]
+
+  const plan = planTviewMsa({
+    features: reads.map(r => r.feature),
+    refName: 'chr1',
+    start: START,
+    end: START + sequence.length,
+    sequence,
+  })
+
+  it('finds the array as a reference interval with the right unit', () => {
+    expect(plan.arrays).toHaveLength(1)
+    expect(plan.subject?.period).toBe(3)
+    expect(plan.subject?.unit).toBe('CAG')
+    expect(plan.subject?.start).toBe(START + FLANK.length)
+    expect(plan.subject?.end).toBe(START + FLANK.length + REF_COPIES * 3)
+  })
+
+  it('measures the same allele the same however the aligner spelled it', () => {
+    const copies = Object.fromEntries(plan.subject!.copiesByName)
+    expect(copies.expanded_early).toBe(14)
+    expect(copies.expanded_late).toBe(14)
+  })
+
+  it('counts a read that inserts nothing, and one that deletes', () => {
+    const copies = Object.fromEntries(plan.subject!.copiesByName)
+    expect(copies.reference_length).toBe(10)
+    expect(copies.contracted).toBe(7)
+  })
+
+  it('counts the reference as an allele of its own', () => {
+    expect(plan.subject!.copiesByName.get('chr1')).toBe(REF_COPIES)
+  })
+
+  it('labels each row with its copy count and keeps the reference on top', () => {
+    expect(plan.reads.map(r => r.label)).toEqual([
+      'chr1|n=10',
+      'expanded_early|n=14',
+      'expanded_late|n=14',
+      'reference_length|n=10',
+      'contracted|n=7',
+    ])
+  })
+
+  it('labels without renaming, so the blocks keyed by name still resolve', () => {
+    // the label is added after the array blocks are built and keyed. Renaming
+    // in place instead left every labelled row unable to find its own block —
+    // it fell back to gaps, and the row rendered blank under its own label
+    expect(plan.reads.map(r => r.name)).toEqual([
+      'chr1',
+      'expanded_early',
+      'expanded_late',
+      'reference_length',
+      'contracted',
+    ])
+  })
+
+  it('keeps the label in one defline token, which FastaMSA truncates at', () => {
+    for (const read of plan.reads) {
+      expect(read.label).not.toContain(' ')
+    }
+  })
+
+  it('puts copy k of every row in the same columns', () => {
+    const block = plan.subject!
+    // the two 14-copy reads carry the same allele, so their blocks are equal
+    expect(block.rowByName.get('expanded_early')).toBe(
+      block.rowByName.get('expanded_late'),
+    )
+    // and every row's block is the same width, so the copies stay in register
+    const widths = [...block.rowByName.values()].map(r => r.length)
+    expect(new Set(widths)).toEqual(new Set([block.width]))
+  })
+
+  it('renders every row with its flanks, its block and nothing absent', () => {
+    const rendered = rows(renderTviewMsa(plan))
+    expect(rendered.map(([name]) => name)).toEqual([
+      'chr1|n=10',
+      'expanded_early|n=14',
+      'expanded_late|n=14',
+      'reference_length|n=10',
+      'contracted|n=7',
+    ])
+    for (const [name, seq] of rendered) {
+      expect(seq.length).toBe(plan.layout.totalColumns)
+      // every row spans the whole region, so nothing is outside it
+      expect(seq).not.toContain('.')
+      // the flanks are matched bases, not the block
+      expect(seq.startsWith(FLANK)).toBe(true)
+      expect(seq.endsWith(FLANK)).toBe(true)
+      // and the array block is the row's own allele, not a run of gaps
+      const copies = Number(/n=(\d+)/.exec(name)![1])
+      expect(
+        seq.split('').filter(c => c === 'C').length,
+      ).toBeGreaterThanOrEqual(copies)
+    }
+  })
 })
 
 describe('renderedColToMsaCol', () => {
@@ -262,7 +418,9 @@ describe('renderedColToMsaCol', () => {
 
   it('skips past hidden all-gap columns', () => {
     // full columns 1 and 3 are hidden, so rendered 0..2 -> full 0, 2, 4
-    expect([0, 1, 2].map(c => renderedColToMsaCol([1, 3], c))).toEqual([0, 2, 4])
+    expect([0, 1, 2].map(c => renderedColToMsaCol([1, 3], c))).toEqual([
+      0, 2, 4,
+    ])
   })
 
   it('handles hidden columns at the start', () => {

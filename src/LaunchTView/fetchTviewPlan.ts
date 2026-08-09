@@ -1,14 +1,10 @@
-import { getConf, readConfObject } from '@jbrowse/core/configuration'
-import { getRpcSessionId } from '@jbrowse/core/util/tracks'
+import { readConfObject } from '@jbrowse/core/configuration'
 
-import { planTviewMsa } from './tview'
+import { MAX_CELLS } from './limits'
 
+import type { TviewPlanResult } from './TviewGetPlanRpc'
 import type { AnyConfigurationModel } from '@jbrowse/core/configuration'
-import type {
-  AbstractSessionModel,
-  AbstractTrackModel,
-  Feature,
-} from '@jbrowse/core/util'
+import type { AbstractSessionModel } from '@jbrowse/core/util'
 
 /** the RPC needs assemblyName to resolve refNameAliases for the file */
 export interface FetchRegion {
@@ -18,17 +14,12 @@ export interface FetchRegion {
   end: number
 }
 
-/** what CoreGetFeatures needs, reachable from a live track or from its config */
+/** one track's worth of rows, and the name they are grouped under */
 export interface TviewSource {
   adapterConfig: unknown
-  rpcSessionId: string
-}
-
-export function sourceFromTrack(track: AbstractTrackModel): TviewSource {
-  return {
-    adapterConfig: getConf(track, 'adapter'),
-    rpcSessionId: getRpcSessionId(track),
-  }
+  /** the label rows from this file carry; omitted when there is only one */
+  sample?: string
+  trackId: string
 }
 
 /**
@@ -57,39 +48,48 @@ export function findTrackConf(session: SessionTrackLookup, trackId: string) {
 }
 
 /**
- * A rebuild runs from the track's config rather than a track model, so it works
- * whether or not the track is still open anywhere in the session.
+ * The assembly's own sequence adapter, which is what makes the reference a row
+ * and, through it, makes an array an interval rather than an insertion. An
+ * assembly that cannot supply one still works: the alignment is then reads only
+ * and no array is reported, which is the pre-reference behaviour.
  */
-export function sourceFromConfig(conf: AnyConfigurationModel): TviewSource {
-  return {
-    adapterConfig: readConfObject(conf, 'adapter'),
-    rpcSessionId: `tview-${readConfObject(conf, 'trackId')}`,
-  }
+export function sequenceAdapterConfig(
+  session: AbstractSessionModel,
+  assemblyName: string,
+) {
+  const assembly = session.assemblyManager.get(assemblyName)
+  const conf = assembly?.configuration
+  return conf
+    ? (readConfObject(conf, ['sequence', 'adapter']) as
+        Record<string, unknown> | undefined)
+    : undefined
 }
 
+/**
+ * One RPC per launch, however many files it draws from. The session id is
+ * shared across the sources so the worker keeps one adapter cache for the view
+ * rather than one per file.
+ */
 export async function fetchTviewPlan({
   session,
-  source,
+  sources,
   region,
+  maxCells = MAX_CELLS,
 }: {
   session: AbstractSessionModel
-  source: TviewSource
+  sources: TviewSource[]
   region: FetchRegion
+  maxCells?: number
 }) {
-  const { adapterConfig, rpcSessionId } = source
-  const feats = (await session.rpcManager.call(
-    rpcSessionId,
-    'CoreGetFeatures',
-    {
-      adapterConfig,
-      sessionId: rpcSessionId,
-      regions: [region],
-    },
-  )) as Feature[]
-  const features = feats.filter(f => !!f.get('seq'))
-  // only planned, not rendered: a caller may cancel, or find it too large
-  return {
-    plan: planTviewMsa({ features, ...region }),
-    rowCount: features.length,
-  }
+  const rpcSessionId = `tview-${sources.map(s => s.trackId).join(',')}`
+  return (await session.rpcManager.call(rpcSessionId, 'TviewGetPlan', {
+    sessionId: rpcSessionId,
+    sources: sources.map(s => ({
+      adapterConfig: s.adapterConfig,
+      sample: s.sample,
+    })),
+    sequenceAdapterConfig: sequenceAdapterConfig(session, region.assemblyName),
+    region,
+    maxCells,
+  })) as TviewPlanResult
 }

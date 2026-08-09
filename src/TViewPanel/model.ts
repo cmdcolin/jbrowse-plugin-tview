@@ -5,15 +5,12 @@ import { autorun } from 'mobx'
 import { MSAModelF } from 'react-msaview'
 
 import { buildColumnToRefPos, renderedColToMsaCol } from './coords'
-import {
-  fetchTviewPlan,
-  findTrackConf,
-  sourceFromConfig,
-} from '../LaunchTView/fetchTviewPlan'
+import { initRegion, initSources } from './init'
+import { fetchTviewPlan } from '../LaunchTView/fetchTviewPlan'
 import { MAX_CELLS } from '../LaunchTView/limits'
-import { renderTviewMsa } from '../LaunchTView/tview'
 
-import type { AnyConfigurationModel } from '@jbrowse/core/configuration'
+import type { TviewInit } from './init'
+import type { FetchRegion, TviewSource } from '../LaunchTView/fetchTviewPlan'
 import type { MenuItem } from '@jbrowse/core/ui'
 import type { Instance } from '@jbrowse/mobx-state-tree'
 import type { LinearGenomeViewModel } from '@jbrowse/plugin-linear-genome-view'
@@ -30,11 +27,7 @@ export interface IRegion {
   end: number
 }
 
-/** enough to re-run CoreGetFeatures for msaRegion after a session reload */
-export interface MsaSource {
-  trackId: string
-  assemblyName: string
-}
+export type { TviewInit } from './init'
 
 /**
  * #stateModel TViewPlugin
@@ -56,7 +49,14 @@ export default function stateModelFactory() {
         connectedViewId: types.maybe(types.string),
         /**
          * #property
-         * reference region the alignment columns span
+         * what the view is: a locus, an assembly and the alignment files to
+         * read it from. Everything else here is derived from it — see
+         * `./init.ts` for why this one is kept rather than cleared
+         */
+        init: types.frozen<TviewInit | undefined>(),
+        /**
+         * #property
+         * reference region the alignment columns span, filled in by the load
          */
         msaRegion: types.frozen<IRegion | undefined>(),
         /**
@@ -66,12 +66,9 @@ export default function stateModelFactory() {
         insertionWidths: types.frozen<[number, number][]>([]),
         /**
          * #property
-         * the track the alignment was built from. react-msaview drops data.msa
-         * from snapshots over 50kb (it expects a msaFilehandle to reload from,
-         * which tview has no equivalent of), so without this a restored session
-         * brings the view back empty
+         * [start, end, columns] for every tandem array laid out per copy
          */
-        msaSource: types.frozen<MsaSource | undefined>(),
+        arraySpans: types.frozen<[number, number, number][]>([]),
         /**
          * #property
          */
@@ -83,9 +80,9 @@ export default function stateModelFactory() {
        * #getter
        */
       get columnToRefPos() {
-        const { msaRegion, insertionWidths } = self
+        const { msaRegion, insertionWidths, arraySpans } = self
         return msaRegion
-          ? buildColumnToRefPos({ ...msaRegion, insertionWidths })
+          ? buildColumnToRefPos({ ...msaRegion, insertionWidths, arraySpans })
           : undefined
       },
       /**
@@ -97,13 +94,19 @@ export default function stateModelFactory() {
       },
       /**
        * #getter
-       * the source track's config, which outlives the track being open
+       * the region `init.loc` names, once the assembly can parse it
        */
-      get msaSourceConf() {
-        const { msaSource } = self
-        return msaSource
-          ? findTrackConf(getSession(self), msaSource.trackId)
-          : undefined
+      get initRegion() {
+        return self.init ? initRegion(getSession(self), self.init) : undefined
+      },
+      /**
+       * #getter
+       * the alignment files `init.tracks` names, once every one resolves. The
+       * configs are read rather than the track models, so a tview outlives the
+       * tracks it was launched from being closed.
+       */
+      get initSources() {
+        return self.init ? initSources(getSession(self), self.init) : undefined
       },
     }))
     .views(self => ({
@@ -138,29 +141,47 @@ export default function stateModelFactory() {
       },
     }))
     .volatile(() => ({
-      /** a rebuild is in flight, or has failed and should not be retried */
-      rebuilding: false,
-      rebuildFailed: false,
+      /** a load is in flight, or has failed and should not be retried */
+      loading: false,
+      loadFailed: false,
     }))
     .actions(self => ({
       /**
        * #action
        */
-      setRebuilding(arg: boolean) {
-        self.rebuilding = arg
+      setLoading(arg: boolean) {
+        self.loading = arg
       },
       /**
        * #action
        */
-      setRebuildFailed(arg: boolean) {
-        self.rebuildFailed = arg
+      setLoadFailed(arg: boolean) {
+        self.loadFailed = arg
       },
       /**
        * #action
        */
-      setMsaData(msa: string, insertionWidths: [number, number][]) {
-        self.data.setMSA(msa)
-        self.insertionWidths = insertionWidths
+      setInit(arg?: TviewInit) {
+        self.init = arg
+        self.loadFailed = false
+      },
+      /**
+       * #action
+       */
+      setMsaData(result: {
+        msa: string
+        tree?: string
+        insertionWidths: [number, number][]
+        arraySpans: [number, number, number][]
+        region: IRegion
+      }) {
+        self.msaRegion = result.region
+        self.insertionWidths = result.insertionWidths
+        self.arraySpans = result.arraySpans
+        self.data.setMSA(result.msa)
+        if (result.tree) {
+          self.data.setTree(result.tree)
+        }
       },
       /**
        * #action
@@ -186,33 +207,30 @@ export default function stateModelFactory() {
     .actions(self => ({
       /**
        * #action
-       * re-runs CoreGetFeatures for msaRegion and rebuilds the alignment
+       * builds the alignment `init` describes, from whatever `init` describes
+       * it over. The one way an alignment ever gets here.
        */
-      async rebuildMsa(conf: AnyConfigurationModel, source: MsaSource) {
+      async load(region: FetchRegion, sources: TviewSource[]) {
         const session = getSession(self)
-        self.setRebuilding(true)
+        self.setLoading(true)
         self.setLoadingMSA(true)
-        self.setStatus({ msg: 'Rebuilding alignment from track data' })
+        self.setStatus({ msg: 'Building alignment from track data' })
         try {
-          const { plan } = await fetchTviewPlan({
-            session,
-            source: sourceFromConfig(conf),
-            region: { ...self.msaRegion!, assemblyName: source.assemblyName },
-          })
-          if (plan.cellCount > MAX_CELLS) {
+          const result = await fetchTviewPlan({ session, sources, region })
+          if (result.tooLarge) {
             throw new Error(
-              `alignment is ${plan.cellCount.toLocaleString('en-US')} cells, above the ${MAX_CELLS.toLocaleString('en-US')} limit`,
+              `alignment is ${result.cellCount.toLocaleString('en-US')} cells, above the ${MAX_CELLS.toLocaleString('en-US')} limit`,
             )
           }
-          self.setMsaData(renderTviewMsa(plan), plan.insertionWidths)
+          self.setMsaData(result)
         } catch (e) {
           console.error(e)
-          self.setRebuildFailed(true)
-          session.notify(`Could not rebuild tview alignment: ${e}`, 'error')
+          self.setLoadFailed(true)
+          session.notify(`Could not build tview alignment: ${e}`, 'error')
         } finally {
           self.setLoadingMSA(false)
           self.setStatus(undefined)
-          self.setRebuilding(false)
+          self.setLoading(false)
         }
       },
     }))
@@ -221,19 +239,22 @@ export default function stateModelFactory() {
         addDisposer(
           self,
           autorun(() => {
-            const { data, msaRegion, msaSource, msaSourceConf } = self
-            // a restored session arrives with the region and source but no
-            // alignment; stays armed if the track config shows up later
+            // Everything that decides whether to load is a getter over `init`,
+            // so this reads as the one sentence it is: an alignment the view
+            // does not have, over a region and files it can now resolve. It
+            // stays armed across the assembly loading and the track configs
+            // arriving, which is what a restored session needs and what a
+            // session-authored view needs, without either being a special case.
+            const { data, initRegion, initSources, loading, loadFailed } = self
             if (
               !data.msa &&
-              msaRegion &&
-              msaSource &&
-              msaSourceConf &&
-              !self.rebuilding &&
-              !self.rebuildFailed
+              initRegion &&
+              initSources &&
+              !loading &&
+              !loadFailed
             ) {
-              // rebuildMsa handles its own failures, so it never rejects
-              void self.rebuildMsa(msaSourceConf, msaSource)
+              // load handles its own failures, so it never rejects
+              void self.load(initRegion, initSources)
             }
           }),
         )

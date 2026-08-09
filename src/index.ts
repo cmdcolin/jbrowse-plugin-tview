@@ -1,7 +1,9 @@
 import Plugin from '@jbrowse/core/Plugin'
 
 import AddHighlightModelF from './AddHighlightModel'
-import LaunchTViewF from './LaunchTView'
+import TrackMenuItemF from './LaunchTView'
+import TviewGetPlanRpcF from './LaunchTView/TviewGetPlanRpc'
+import LaunchTViewF from './LaunchTView/launchView'
 import TViewF from './TViewPanel'
 import { version } from './version'
 
@@ -13,7 +15,9 @@ export default class TViewPlugin extends Plugin {
 
   install(pluginManager: PluginManager) {
     TViewF(pluginManager)
+    TrackMenuItemF(pluginManager)
     LaunchTViewF(pluginManager)
+    TviewGetPlanRpcF(pluginManager)
     AddHighlightModelF(pluginManager)
   }
 

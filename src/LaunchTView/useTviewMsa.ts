@@ -1,10 +1,10 @@
-import { assembleLocString, getSession } from '@jbrowse/core/util'
 import useSWR from 'swr'
 
-import { fetchTviewPlan, sourceFromTrack } from './fetchTviewPlan'
+import { fetchTviewPlan } from './fetchTviewPlan'
+import { initRegion, initSources } from '../TViewPanel/init'
 
-import type { FetchRegion } from './fetchTviewPlan'
-import type { AbstractTrackModel } from '@jbrowse/core/util'
+import type { TviewInit } from '../TViewPanel/init'
+import type { AbstractSessionModel } from '@jbrowse/core/util'
 
 const staticSwrConfig = {
   revalidateOnFocus: false,
@@ -13,24 +13,27 @@ const staticSwrConfig = {
   shouldRetryOnError: false,
 }
 
+/**
+ * A preview of what a `TviewInit` resolves to, for the dialog to report before
+ * the view is opened.
+ *
+ * Resolved through the same two functions the view itself uses, so what the
+ * dialog states and what the view then builds cannot disagree.
+ */
 export function useTviewMsa({
-  model,
-  region,
+  session,
+  init,
 }: {
-  model: AbstractTrackModel
-  region?: FetchRegion
+  session: AbstractSessionModel
+  init?: TviewInit
 }) {
-  // the key carries the region so the fetcher receives it already narrowed
+  const region = init ? initRegion(session, init) : undefined
+  const sources = init ? initSources(session, init) : undefined
   return useSWR(
-    region
-      ? { tag: 'tview', loc: assembleLocString(region), id: model.id, region }
+    region && sources
+      ? { tag: 'tview', loc: init!.loc, tracks: init!.tracks, region, sources }
       : null,
-    ({ region }) =>
-      fetchTviewPlan({
-        session: getSession(model),
-        source: sourceFromTrack(model),
-        region,
-      }),
+    ({ region, sources }) => fetchTviewPlan({ session, sources, region }),
     staticSwrConfig,
   )
 }
