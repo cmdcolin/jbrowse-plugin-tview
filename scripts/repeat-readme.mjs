@@ -87,7 +87,7 @@ function spreadBlock(measurements) {
   ])
 }
 
-function figureBlock(measurements, figureStats) {
+function figureBlock(figureStats) {
   return table([
     ['figure', 'rows', 'columns', 'columns one row has', 'hidden'],
     ...figureStats.map(f => [
@@ -142,7 +142,7 @@ const before = fs.readFileSync(README, 'utf8')
 const after = write(before, {
   'repeat-genotypes': genotypeBlock(measurements),
   'repeat-spread': spreadBlock(measurements),
-  'repeat-figures': figureBlock(measurements, figureStats),
+  'repeat-figures': figureBlock(figureStats),
 })
 
 if (check) {

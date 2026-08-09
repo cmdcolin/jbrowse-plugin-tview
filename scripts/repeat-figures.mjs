@@ -139,7 +139,10 @@ async function capture(page, figure) {
     // so the percent that means "keep what minRows rows agree on" is a
     // function of the row count. Rounded down to a tenth, which stays inside
     // the band that rounds to the same row count and reads as a number on the
-    // toolbar rather than as sixteen decimal places.
+    // toolbar rather than as sixteen decimal places. One row is worth
+    // 100/rows percent and the rounding gives up 0.1, so the two land on top
+    // of each other past a thousand rows — a figure that big wants the
+    // threshold set exactly, not a tenth.
     view.setAllowedGappyness(
       Math.floor((1000 * (rows - minRows + 1)) / rows) / 10,
     )

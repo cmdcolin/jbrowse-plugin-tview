@@ -86,7 +86,7 @@ function reportText(measurements, sampleOrder) {
     lines.push(
       `\n=== ${m.locus.name}  ${m.locus.refName}:${m.locus.start}-${m.locus.end}  ` +
         `${m.reads} reads, ${m.rows} rows x ${m.columns} columns ` +
-        `(${m.singleRowColumns} columns one row has a base in)`,
+        `(${m.singleRowColumns} columns one row has a base in, ${m.emptyColumns} none does)`,
     )
     if (!m.arrays.length) {
       lines.push('  no reference array found')

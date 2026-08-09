@@ -39,6 +39,18 @@ export async function fetchReads({ uri, refName, start, end }) {
       : { bamPath: uri, baiPath: `${uri}.bai` },
   )
   await bam.getHeader()
+  // getRecordsForRange answers a reference it has never heard of with no reads
+  // at all, which reads downstream as an empty locus rather than as the wrong
+  // name. `chr1` against a BAM that calls it `1` is the ordinary way to get
+  // here — hence --ref-name existing in the first place — so say which name
+  // missed and what the file does call its references.
+  if ((await bam.getSeqId(refName)) === undefined) {
+    const names = Object.keys(bam.chrToIndex ?? {})
+    throw new Error(
+      `${uri} has no reference named ${refName}; it has ${names.length} ` +
+        `including ${names.slice(0, 5).join(', ')} — pass --ref-name`,
+    )
+  }
   const records = await bam.getRecordsForRange(refName, start, end)
   return records.filter(r => !!r.seq).map(r => ({ get: key => r[key] }))
 }

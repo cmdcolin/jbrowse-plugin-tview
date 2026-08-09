@@ -70,15 +70,6 @@ export function extractAllele(read: ReadLayout, start: number, end: number) {
   return ret
 }
 
-/** Reference positions an array owns, including the insertion slot at its right edge. */
-export function arrayInsertionKeys(array: { start: number; end: number }) {
-  const ret: number[] = []
-  for (let pos = array.start; pos <= array.end; pos++) {
-    ret.push(pos)
-  }
-  return ret
-}
-
 /**
  * How far outside an array an insertion of its own unit can be anchored, in
  * copies. An indel made of repeat units has no unique placement inside the
