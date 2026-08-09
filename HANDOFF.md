@@ -65,6 +65,26 @@ ATXN3 is still Mendelian and now explains the mother's second allele instead of
 calling it noise. FMR1 shifts by one copy for everyone because the interval grew
 — every row pays it equally, which is the design.
 
+## Review of `9b9d7ae`, and what came out of it
+
+A later pass found two soundness problems in the absorb rule itself. Both are in
+the task list (`TaskList`) as #1 and #2, with the reproductions; #1 most likely
+explains follow-up 6 below, so read them before touching `alleles.ts` or
+`align.ts`.
+
+- **`unitIdentity` scores only the first 300bp of an insert**, normalized by the
+  probe rather than the insert, so `unit x 12 + 1000bp of junk` scores 1.00.
+  That is the shape of the ABCA7 read in follow-up 6.
+- **Widening the interval makes one read's error everyone's.** A single spurious
+  `CGG` at 98, against an array at 100-130, moves the array to 98-130 for all
+  rows. Re-anchoring the insert per read instead would fix that, keep FMR1's
+  reference at 21 copies, and delete the whole neighbour-collision apparatus.
+
+Fixed in `5de809d` and not worth carrying: a wrong `--ref-name` reported an
+empty locus instead of an error, `arrayInsertionKeys` had no callers,
+`figureBlock` ignored an argument, `emptyColumns` was computed and never
+printed, and the gappyness rounding's thousand-row limit was undocumented.
+
 ## Follow-ups, roughly in order
 
 1. **`test/liveRepeatsData.ts` and `scripts/lib/giabTrio.mjs` are now two copies
