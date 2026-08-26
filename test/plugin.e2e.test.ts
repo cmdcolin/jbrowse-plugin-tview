@@ -91,6 +91,29 @@ async function screenshot(page: Page, name: string) {
   await page.screenshot({ path: `${SHOTS}/${name}.png` })
 }
 
+/**
+ * Submits the launch dialog, once its preview has resolved.
+ *
+ * Waiting on the button is waiting on the condition itself — Submit is disabled
+ * until the plan comes back — where waiting on the sentence beside it waits on
+ * the dialog's wording. That sentence was reworded, and these two tests then
+ * spent sixty seconds each looking for a phrase nothing prints any more.
+ */
+async function submitDialog(page: Page) {
+  await page.waitForFunction(
+    () =>
+      [...document.querySelectorAll('button')].some(
+        b => b.textContent.trim() === 'Submit' && !b.disabled,
+      ),
+    { timeout: 60_000 },
+  )
+  await page.evaluate(() => {
+    ;[...document.querySelectorAll('button')]
+      .find(b => b.textContent.trim() === 'Submit')
+      ?.click()
+  })
+}
+
 describe('dev server', () => {
   // esbuild's serve answers 200 with the whole file when a Range end is past
   // EOF, which BAM readers misparse as "invalid bgzf header"
@@ -183,7 +206,7 @@ describe('tview plugin in jbrowse-web', () => {
     await waitForDisplay(page)
     // react-msaview's DataModel strips data.msa from snapshots over 50kb,
     // because it expects an msaFilehandle to reload from. tview has none, so
-    // the view has to re-run CoreGetFeatures off its persisted msaSource.
+    // the view has to rebuild the alignment off its persisted `init`.
     await page.evaluate(async () => {
       await window.JBrowseSession.views[0].navToLocString(
         'ctgA:1..2000',
@@ -199,15 +222,7 @@ describe('tview plugin in jbrowse-web', () => {
         )
         .onClick()
     })
-    await page.waitForFunction(
-      () => document.body.innerText.includes('reads with sequence data found'),
-      { timeout: 60_000 },
-    )
-    await page.evaluate(() => {
-      ;[...document.querySelectorAll('button')]
-        .find(b => b.textContent.trim() === 'Submit')
-        ?.click()
-    })
+    await submitDialog(page)
     await page.waitForFunction(
       () =>
         window.JBrowseSession.views.find(
@@ -223,7 +238,7 @@ describe('tview plugin in jbrowse-web', () => {
       return {
         msaChars: v.data.msa.length,
         rows: v.rows.length,
-        msaSource: v.msaSource,
+        init: v.init,
         msaSurvivesSnapshot:
           JSON.parse(JSON.stringify(v)).data.msa !== undefined,
         snapshot: JSON.parse(JSON.stringify(v)),
@@ -232,10 +247,14 @@ describe('tview plugin in jbrowse-web', () => {
     // the premise: this alignment is past the cap, so the snapshot loses it
     expect(built.msaChars).toBeGreaterThan(50_000)
     expect(built.msaSurvivesSnapshot).toBe(false)
-    expect(built.msaSource).toEqual({
-      trackId: 'volvox_bam',
-      assemblyName: 'volvox',
-    })
+    // the blob is the whole durable statement of what the view is, so it is
+    // what has to survive a snapshot the alignment does not
+    expect(built.init.assembly).toBe('volvox')
+    // the end depends on how the view snapped bp to the pixel grid, as above
+    expect(built.init.loc).toMatch(/ctgA:1\.\./)
+    expect(built.init.tracks).toEqual([
+      { trackId: 'volvox_bam', sample: 'volvox-sorted.bam' },
+    ])
 
     // recreating the view from that snapshot is what a reload does to it
     const rowsImmediately = await page.evaluate(snapshot => {
@@ -265,11 +284,11 @@ describe('tview plugin in jbrowse-web', () => {
         rows: v.rows.length,
         msaChars: v.data.msa.length,
         numColumns: v.numColumns,
-        rebuildFailed: v.rebuildFailed,
+        loadFailed: v.loadFailed,
         colMapsTo: v.colToGenomeRegion(10),
       }
     })
-    expect(restored.rebuildFailed).toBe(false)
+    expect(restored.loadFailed).toBe(false)
     expect(restored.rows).toBe(built.rows)
     expect(restored.msaChars).toBe(built.msaChars)
     expect(restored.numColumns).toBe(2000)
@@ -297,16 +316,7 @@ describe('tview plugin in jbrowse-web', () => {
         )
         .onClick()
     })
-    await page.waitForFunction(
-      () => document.body.innerText.includes('reads with sequence data found'),
-      { timeout: 60_000 },
-    )
-    await page.evaluate(() => {
-      const submit = [...document.querySelectorAll('button')].find(
-        b => b.textContent.trim() === 'Submit',
-      )
-      submit?.click()
-    })
+    await submitDialog(page)
     await page.waitForFunction(
       () =>
         window.JBrowseSession.views.find(
