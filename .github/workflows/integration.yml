@@ -23,6 +23,11 @@ jobs:
         run: pnpm lint
       - name: Test
         run: pnpm test
+      # the demo links and public/demo.json are generated from the figures and
+      # public/repeats.json, and need no network, so unlike the measured tables
+      # they can be checked on every push
+      - name: Check the README demo links are current
+        run: pnpm demos --check
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
         with:

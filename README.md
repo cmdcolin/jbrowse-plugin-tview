@@ -9,6 +9,42 @@ get their own columns instead of being collapsed into a marker: every read that
 inserts at a position contributes its bases, and reads without that insertion
 are padded so the reference columns still line up.
 
+## Live demos
+
+Real human data, nothing to install. Each link opens the GIAB Ashkenazi trio —
+PacBio HiFi, GRCh37, streamed from GIAB's FTP — at a tandem repeat locus, with
+the array already unrolled a copy per block and every row labelled with its copy
+count.
+
+<!-- demo-links -->
+
+| locus | window                        | what it shows                                                     | open                       |
+| ----- | ----------------------------- | ----------------------------------------------------------------- | -------------------------- |
+| FMR1  | chrX:146,993,530..146,993,670 | CGG on the X, so two of the three samples carry one allele        | [launch][tview-demo-fmr1]  |
+| HTT   | chr4:3,076,570..3,076,730     | the CAG tract, with a shoulder either side of one allele          | [launch][tview-demo-htt]   |
+| ATXN3 | chr14:92,537,320..92,537,420  | the locus that reports as four arrays when anchored on insertions | [launch][tview-demo-atxn3] |
+| ABCA7 | chr19:1,049,460..1,050,000    | a 25bp VNTR whose alleles run past 2kb                            | [launch][tview-demo-abca7] |
+
+[tview-demo-fmr1]:
+  https://jbrowse.org/code/jb2/main/index.html?config=https%3A%2F%2Fraw.githubusercontent.com%2Fcmdcolin%2Fjbrowse-plugin-tview%2Fmain%2Fpublic%2Fdemo.json&session=spec-%7B%22name%22%3A%22fmr1%22%2C%22views%22%3A%5B%7B%22id%22%3A%22lgv%22%2C%22type%22%3A%22LinearGenomeView%22%2C%22loc%22%3A%22chrX%3A146%2C993%2C530..146%2C993%2C670%22%2C%22assembly%22%3A%22hg19%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG002%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%2C%7B%22trackId%22%3A%22HG003%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%2C%7B%22trackId%22%3A%22HG004%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%5D%7D%2C%7B%22id%22%3A%22tview%22%2C%22type%22%3A%22TView%22%2C%22displayName%22%3A%22fmr1%22%2C%22assembly%22%3A%22hg19%22%2C%22loc%22%3A%22chrX%3A146%2C993%2C530..146%2C993%2C670%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG002%22%2C%22sample%22%3A%22HG002_son%22%7D%2C%7B%22trackId%22%3A%22HG003%22%2C%22sample%22%3A%22HG003_father%22%7D%2C%7B%22trackId%22%3A%22HG004%22%2C%22sample%22%3A%22HG004_mother%22%7D%5D%2C%22connectedViewId%22%3A%22lgv%22%2C%22height%22%3A900%2C%22colWidth%22%3A6%2C%22rowHeight%22%3A8%2C%22treeAreaWidth%22%3A330%2C%22labelsAlignRight%22%3Atrue%2C%22colorSchemeName%22%3A%22jbrowse_dna%22%2C%22drawTree%22%3Atrue%7D%5D%7D
+[tview-demo-htt]:
+  https://jbrowse.org/code/jb2/main/index.html?config=https%3A%2F%2Fraw.githubusercontent.com%2Fcmdcolin%2Fjbrowse-plugin-tview%2Fmain%2Fpublic%2Fdemo.json&session=spec-%7B%22name%22%3A%22htt%22%2C%22views%22%3A%5B%7B%22id%22%3A%22lgv%22%2C%22type%22%3A%22LinearGenomeView%22%2C%22loc%22%3A%22chr4%3A3%2C076%2C570..3%2C076%2C730%22%2C%22assembly%22%3A%22hg19%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG002%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%2C%7B%22trackId%22%3A%22HG003%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%2C%7B%22trackId%22%3A%22HG004%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%5D%7D%2C%7B%22id%22%3A%22tview%22%2C%22type%22%3A%22TView%22%2C%22displayName%22%3A%22htt%22%2C%22assembly%22%3A%22hg19%22%2C%22loc%22%3A%22chr4%3A3%2C076%2C570..3%2C076%2C730%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG002%22%2C%22sample%22%3A%22HG002_son%22%7D%2C%7B%22trackId%22%3A%22HG003%22%2C%22sample%22%3A%22HG003_father%22%7D%2C%7B%22trackId%22%3A%22HG004%22%2C%22sample%22%3A%22HG004_mother%22%7D%5D%2C%22connectedViewId%22%3A%22lgv%22%2C%22height%22%3A900%2C%22colWidth%22%3A6%2C%22rowHeight%22%3A8%2C%22treeAreaWidth%22%3A330%2C%22labelsAlignRight%22%3Atrue%2C%22colorSchemeName%22%3A%22jbrowse_dna%22%2C%22drawTree%22%3Atrue%7D%5D%7D
+[tview-demo-atxn3]:
+  https://jbrowse.org/code/jb2/main/index.html?config=https%3A%2F%2Fraw.githubusercontent.com%2Fcmdcolin%2Fjbrowse-plugin-tview%2Fmain%2Fpublic%2Fdemo.json&session=spec-%7B%22name%22%3A%22atxn3%22%2C%22views%22%3A%5B%7B%22id%22%3A%22lgv%22%2C%22type%22%3A%22LinearGenomeView%22%2C%22loc%22%3A%22chr14%3A92%2C537%2C320..92%2C537%2C420%22%2C%22assembly%22%3A%22hg19%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG002%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%2C%7B%22trackId%22%3A%22HG003%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%2C%7B%22trackId%22%3A%22HG004%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%5D%7D%2C%7B%22id%22%3A%22tview%22%2C%22type%22%3A%22TView%22%2C%22displayName%22%3A%22atxn3%22%2C%22assembly%22%3A%22hg19%22%2C%22loc%22%3A%22chr14%3A92%2C537%2C320..92%2C537%2C420%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG002%22%2C%22sample%22%3A%22HG002_son%22%7D%2C%7B%22trackId%22%3A%22HG003%22%2C%22sample%22%3A%22HG003_father%22%7D%2C%7B%22trackId%22%3A%22HG004%22%2C%22sample%22%3A%22HG004_mother%22%7D%5D%2C%22connectedViewId%22%3A%22lgv%22%2C%22height%22%3A900%2C%22colWidth%22%3A7%2C%22rowHeight%22%3A8%2C%22treeAreaWidth%22%3A330%2C%22labelsAlignRight%22%3Atrue%2C%22colorSchemeName%22%3A%22jbrowse_dna%22%2C%22drawTree%22%3Atrue%7D%5D%7D
+[tview-demo-abca7]:
+  https://jbrowse.org/code/jb2/main/index.html?config=https%3A%2F%2Fraw.githubusercontent.com%2Fcmdcolin%2Fjbrowse-plugin-tview%2Fmain%2Fpublic%2Fdemo.json&session=spec-%7B%22name%22%3A%22abca7%22%2C%22views%22%3A%5B%7B%22id%22%3A%22lgv%22%2C%22type%22%3A%22LinearGenomeView%22%2C%22loc%22%3A%22chr19%3A1%2C049%2C460..1%2C050%2C000%22%2C%22assembly%22%3A%22hg19%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG003%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%5D%7D%2C%7B%22id%22%3A%22tview%22%2C%22type%22%3A%22TView%22%2C%22displayName%22%3A%22abca7%22%2C%22assembly%22%3A%22hg19%22%2C%22loc%22%3A%22chr19%3A1%2C049%2C460..1%2C050%2C000%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG003%22%2C%22sample%22%3A%22HG003_father%22%7D%5D%2C%22connectedViewId%22%3A%22lgv%22%2C%22height%22%3A580%2C%22colWidth%22%3A1%2C%22rowHeight%22%3A22%2C%22treeAreaWidth%22%3A480%2C%22labelsAlignRight%22%3Atrue%2C%22colorSchemeName%22%3A%22jbrowse_dna%22%2C%22drawTree%22%3Afalse%7D%5D%7D
+
+<!-- /demo-links -->
+
+Each one is the same session spec the figure further down was taken from, so a
+link opens what the screenshot beside it is of. They load
+[`public/demo.json`](public/demo.json) into
+[JBrowse Web nightly](https://jbrowse.org/code/jb2/main/) — the nightly because
+`@jbrowse/core` 4.3.0 does not ship the MUI 9 internals this bundle needs — and
+take the plugin from npm, so what they run is the **published** release rather
+than this working tree. Give the reads a few seconds: they arrive by range
+request and the alignment is built in a worker.
+
 ## Gallery
 
 ![tview expanding a non-reference insertion](img/tview-insertion.png)
@@ -287,7 +323,19 @@ pnpm build
 
 pnpm figures:repeats  # the tandem-repeat figures in img/
 pnpm report:repeats   # copy numbers at known loci, from live GIAB data
+pnpm demos            # public/demo.json and the live-demo links above
 ```
+
+`demos` regenerates the hosted config from `public/repeats.json` and the links
+from the same figure definitions, so the demo, the screenshot and the numbers
+are three renderings of one window. It needs no network, so `pnpm demos --check`
+runs in Integration on every push, where the measured tables have to wait for
+the weekly Measurements run.
+
+A figure is only as good as what it draws: react-msaview stops drawing tree
+labels below `minLetterRowHeight`, and the copy counts are in those labels, so
+`figures:repeats` asks the view what it actually drew and warns when a figure
+came out without them.
 
 `report:repeats` is not a test. It fetches from GIAB and UCSC and prints what
 the plan builder measured at each locus, per sample, so the numbers can be read

@@ -13,6 +13,7 @@ import fs from 'node:fs'
 import { FIGURES } from './lib/figures.mjs'
 import { GENOME, LOCI, TRIO, TRIO_REPORT_ORDER } from './lib/giabTrio.mjs'
 import { measureLoci } from './lib/measure.mjs'
+import { table, writeBlocks } from './lib/readme.mjs'
 
 const README = 'README.md'
 
@@ -37,19 +38,6 @@ function alleles(stats) {
 function header(sample) {
   const { role } = TRIO.find(t => t.id === sample)
   return `${sample} (${role})`
-}
-
-function table(rows) {
-  const widths = rows[0].map((_, i) =>
-    Math.max(...rows.map(r => String(r[i]).length)),
-  )
-  const line = cells =>
-    `| ${cells.map((c, i) => String(c).padEnd(widths[i])).join(' | ')} |`
-  return [
-    line(rows[0]),
-    `| ${widths.map(w => '-'.repeat(w)).join(' | ')} |`,
-    ...rows.slice(1).map(line),
-  ].join('\n')
 }
 
 function genotypeBlock(measurements) {
@@ -100,24 +88,6 @@ function figureBlock(figureStats) {
   ])
 }
 
-/** every `<!-- name -->…<!-- /name -->` pair, replaced by what was measured */
-function write(markdown, blocks) {
-  let ret = markdown
-  for (const [name, body] of Object.entries(blocks)) {
-    const re = new RegExp(
-      `(<!-- ${name} -->\\n)[\\s\\S]*?(\\n<!-- /${name} -->)`,
-      'g',
-    )
-    if (!re.test(ret)) {
-      throw new Error(`README.md has no <!-- ${name} --> block`)
-    }
-    // blank lines around the table because that is where prettier puts them,
-    // and a block prettier would reformat is a block --check can never pass
-    ret = ret.replace(re, `$1\n${body}\n$2`)
-  }
-  return ret
-}
-
 const check = process.argv.includes('--check')
 
 const measurements = await measureLoci({
@@ -139,7 +109,7 @@ for (const figure of FIGURES) {
 }
 
 const before = fs.readFileSync(README, 'utf8')
-const after = write(before, {
+const after = writeBlocks(before, {
   'repeat-genotypes': genotypeBlock(measurements),
   'repeat-spread': spreadBlock(measurements),
   'repeat-figures': figureBlock(figureStats),

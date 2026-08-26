@@ -38,7 +38,8 @@
     "figures:repeats": "node scripts/repeat-figures.mjs",
     "prefigures:repeats": "pnpm pretest:e2e",
     "report:repeats": "tsx scripts/repeat-report.mjs",
-    "readme:repeats": "tsx scripts/repeat-readme.mjs"
+    "readme:repeats": "tsx scripts/repeat-readme.mjs",
+    "demos": "node scripts/demo-links.mjs"
   },
   "jbrowse-plugin": {
     "name": "TView"
