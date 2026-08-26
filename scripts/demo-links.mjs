@@ -30,19 +30,23 @@ const HOSTED_CONFIG = 'public/demo.json'
 const JBROWSE = 'https://jbrowse.org/code/jb2/main/index.html'
 
 /**
- * The published bundle, which is what a stranger's browser can fetch.
+ * Where the demo lives on jbrowse.org, which is the same origin the JBrowse
+ * above is served from.
  *
- * The figures are photographed through the dev server and so are of the
- * working tree; a link cannot be, and this is the one thing the two differ by.
- * Unpinned on purpose — a demo should follow the releases rather than rot at
- * whichever one it was written against.
+ * That is the whole reason to host it rather than to link a config on
+ * raw.githubusercontent and a bundle on a CDN: jbrowse-web asks the visitor to
+ * confirm a **cross origin** config naming a UMD plugin, and rightly so, but
+ * that put a dialog headed "Warning" between a README link and anything
+ * rendering. Served from jbrowse.org the question does not arise.
+ *
+ * It also unpins the demo from npm. `pnpm demos:upload` puts the built bundle
+ * here, so the demo shows the code the figures were taken from rather than
+ * whatever was last released.
  */
-const BUNDLE =
-  'https://cdn.jsdelivr.net/npm/jbrowse-plugin-tview/dist/jbrowse-plugin-tview.umd.production.min.js'
+const BUNDLE = 'https://jbrowse.org/demos/tview/plugin.js'
 
-/** where the generated config is served from, which has to be a raw url */
-const HOSTED_CONFIG_URL =
-  'https://raw.githubusercontent.com/cmdcolin/jbrowse-plugin-tview/main/public/demo.json'
+/** root-relative, since it is served from the origin the page is on */
+const HOSTED_CONFIG_URL = '/demos/tview/config.json'
 
 /** what each figure's link is called, and what it is worth opening for */
 const BLURBS = {
@@ -63,7 +67,10 @@ function hostedConfig() {
 
 function link(figure) {
   const session = encodeURIComponent(JSON.stringify(sessionSpec(figure)))
-  return `${JBROWSE}?config=${encodeURIComponent(HOSTED_CONFIG_URL)}&session=spec-${session}`
+  // the config path goes in unescaped: its slashes are legal in a query value
+  // and a kilobyte of session spec follows it, so it is the one part of the
+  // url a reader can still recognise
+  return `${JBROWSE}?config=${HOSTED_CONFIG_URL}&session=spec-${session}`
 }
 
 /**

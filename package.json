@@ -39,7 +39,9 @@
     "prefigures:repeats": "pnpm pretest:e2e",
     "report:repeats": "tsx scripts/repeat-report.mjs",
     "readme:repeats": "tsx scripts/repeat-readme.mjs",
-    "demos": "node scripts/demo-links.mjs"
+    "demos": "node scripts/demo-links.mjs",
+    "demos:upload": "node scripts/demo-upload.mjs",
+    "predemos:upload": "pnpm build && pnpm demos"
   },
   "jbrowse-plugin": {
     "name": "TView"

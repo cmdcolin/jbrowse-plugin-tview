@@ -2,7 +2,7 @@
   "plugins": [
     {
       "name": "TView",
-      "url": "https://cdn.jsdelivr.net/npm/jbrowse-plugin-tview/dist/jbrowse-plugin-tview.umd.production.min.js"
+      "url": "https://jbrowse.org/demos/tview/plugin.js"
     }
   ],
   "assemblies": [
