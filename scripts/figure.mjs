@@ -53,8 +53,14 @@ await page.evaluate(() => {
     .find(i => i.label === 'Launch tview for visible region')
     .onClick()
 })
+// Submit is disabled until the dialog's preview lands, so the button is the
+// condition itself — where the sentence beside it is only the dialog's wording,
+// and waiting on that left this timing out for a phrase it had stopped printing
 await page.waitForFunction(
-  () => document.body.innerText.includes('reads with sequence data found'),
+  () =>
+    [...document.querySelectorAll('button')].some(
+      b => b.textContent.trim() === 'Submit' && !b.disabled,
+    ),
   { timeout: 60_000 },
 )
 await page.evaluate(() => {
