@@ -1,4 +1,5 @@
 import { alignToUnit, unitIdentity } from './align'
+import { ABSENT, SPANNED_GAP } from './readLayout'
 
 import type { ReadLayout } from './readLayout'
 import type { ReferenceArray } from './repeats'
@@ -31,9 +32,6 @@ export interface ArrayBlock {
   /** allele length in bp, by row name */
   lengthByName: Map<string, number>
 }
-
-const SPANNED_GAP = '-'
-const ABSENT = '.'
 
 /**
  * What one row has between two reference positions: its matched bases, plus
