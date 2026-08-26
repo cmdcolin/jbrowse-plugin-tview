@@ -2,3 +2,4 @@ pnpm-lock.yaml
 public/config.json
 public/config_demo.json
 public/demo.json
+public/demo-index.html

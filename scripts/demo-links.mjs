@@ -19,6 +19,8 @@ import { table, writeBlocks } from './lib/readme.mjs'
 const README = 'README.md'
 const DEV_CONFIG = 'public/repeats.json'
 const HOSTED_CONFIG = 'public/demo.json'
+const INDEX = 'public/demo-index.html'
+const REPO = 'https://github.com/cmdcolin/jbrowse-plugin-tview'
 
 /**
  * A JBrowse that can run this plugin.
@@ -102,27 +104,59 @@ function demoBlock() {
   ].join('\n')
 }
 
+/**
+ * A landing page for the folder, so `jbrowse.org/demos/tview/` is itself a link
+ * rather than a 404 for whoever trims one of the long ones.
+ *
+ * It sends them to the first demo and names where the others are. `&` is
+ * written as an entity because a session spec is full of them and this is html,
+ * not a url.
+ */
+function indexPage() {
+  const [first] = FIGURES
+  const href = link(first).replaceAll('&', '&amp;')
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>tview demos</title>
+    <meta http-equiv="refresh" content="0; url=${href}" />
+  </head>
+  <body>
+    <p>
+      Opening the <a href="${href}">${first.name.toUpperCase()} demo</a> — the
+      GIAB trio at a tandem repeat, in a tview. The others are listed in the
+      <a href="${REPO}#live-demos">README</a>.
+    </p>
+  </body>
+</html>
+`
+}
+
 const check = process.argv.includes('--check')
-const config = hostedConfig()
 const before = fs.readFileSync(README, 'utf8')
-const after = writeBlocks(before, { 'demo-links': demoBlock() })
+const generated = {
+  [README]: writeBlocks(before, { 'demo-links': demoBlock() }),
+  [HOSTED_CONFIG]: hostedConfig(),
+  [INDEX]: indexPage(),
+}
 
 if (check) {
-  const stale = [
-    before === after ? undefined : README,
-    fs.existsSync(HOSTED_CONFIG) &&
-    fs.readFileSync(HOSTED_CONFIG, 'utf8') === config
-      ? undefined
-      : HOSTED_CONFIG,
-  ].filter(Boolean)
+  const stale = Object.entries(generated).filter(
+    ([file, body]) =>
+      !fs.existsSync(file) || fs.readFileSync(file, 'utf8') !== body,
+  )
   if (stale.length) {
-    console.error(`${stale.join(' and ')} out of date; run: pnpm demos`)
+    console.error(
+      `${stale.map(([f]) => f).join(' and ')} out of date; run: pnpm demos`,
+    )
     process.exitCode = 1
   } else {
-    console.log(`${README} and ${HOSTED_CONFIG} are up to date`)
+    console.log(`${Object.keys(generated).join(', ')} are up to date`)
   }
 } else {
-  fs.writeFileSync(HOSTED_CONFIG, config)
-  fs.writeFileSync(README, after)
-  console.log(`wrote ${HOSTED_CONFIG} and the demo links into ${README}`)
+  for (const [file, body] of Object.entries(generated)) {
+    fs.writeFileSync(file, body)
+  }
+  console.log(`wrote ${Object.keys(generated).join(', ')}`)
 }

@@ -18,6 +18,7 @@ const BUCKET = 's3://jbrowse.org/demos/tview'
 const DISTRIBUTION = 'E13LGELJOT4GQO'
 const BUNDLE = 'dist/jbrowse-plugin-tview.umd.production.min.js'
 const CONFIG = 'public/demo.json'
+const INDEX = 'public/demo-index.html'
 
 // Neither file is versioned in its name, so both have to be revalidated rather
 // than cached for a year — the same reason jbrowse-plugin-list uploads its
@@ -26,7 +27,7 @@ const CACHE = 'Cache-Control: no-cache, must-revalidate'
 
 const dryRun = process.argv.includes('--dry-run')
 
-for (const file of [BUNDLE, CONFIG]) {
+for (const file of [BUNDLE, CONFIG, INDEX]) {
   if (!fs.existsSync(file)) {
     throw new Error(`${file} is missing; run: pnpm build && pnpm demos`)
   }
@@ -63,6 +64,16 @@ run('aws', [
   `${BUCKET}/config.json`,
   '--content-type',
   'application/json',
+  '--cache-control',
+  CACHE.replace('Cache-Control: ', ''),
+])
+run('aws', [
+  's3',
+  'cp',
+  INDEX,
+  `${BUCKET}/index.html`,
+  '--content-type',
+  'text/html',
   '--cache-control',
   CACHE.replace('Cache-Control: ', ''),
 ])

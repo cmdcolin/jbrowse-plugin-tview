@@ -40,16 +40,15 @@ Nothing to accept and nothing to install: click one and wait for the reads,
 which take a few seconds since they arrive by range request and the alignment is
 built in a worker.
 
-The demo lives at
-[jbrowse.org/demos/tview/](https://jbrowse.org/demos/tview/config.json) — the
-config and the plugin bundle both — and opens in
-[JBrowse Web nightly](https://jbrowse.org/code/jb2/main/), the nightly because
-`@jbrowse/core` 4.3.0 does not ship the MUI 9 internals this bundle needs.
-Hosting it there rather than pointing at a config on GitHub and a bundle on a
-CDN is what makes it one click: jbrowse-web asks a visitor to confirm a **cross
-origin** config that names a UMD plugin, which is the right thing for it to do
-and put a dialog headed "Warning" in front of a README link. Served from the
-origin the JBrowse is on, the question does not arise.
+The demo lives at [jbrowse.org/demos/tview/](https://jbrowse.org/demos/tview/) —
+the config and the plugin bundle both, and that folder opens the first of them —
+and runs in [JBrowse Web nightly](https://jbrowse.org/code/jb2/main/), the
+nightly because `@jbrowse/core` 4.3.0 does not ship the MUI 9 internals this
+bundle needs. Hosting it there rather than pointing at a config on GitHub and a
+bundle on a CDN is what makes it one click: jbrowse-web asks a visitor to
+confirm a **cross origin** config that names a UMD plugin, which is the right
+thing for it to do and put a dialog headed "Warning" in front of a README link.
+Served from the origin the JBrowse is on, the question does not arise.
 
 It also means the demo is not waiting on a release. `pnpm demos:upload` puts the
 **built** bundle there, so what a link opens is the code the figures below were
@@ -86,7 +85,7 @@ The ABCA7 VNTR in one PacBio HiFi sample, a copy per block of columns. Every row
 carries its copy count, and the rows sort by it, so the genotype is the step in
 the ladder — the two alleles the table below reports for HG003, with a scatter
 of reads between them. Laid out base by base this is 2.2kb of sequence with
-nothing to line it up against.
+nothing to line it up against. [Open this one live][tview-demo-abca7].
 
 ### An array is an interval, not an insertion
 
@@ -226,7 +225,9 @@ them beside it is what the count depends on.
 
 The FMR1 CGG repeat in the GIAB Ashkenazi trio, all three files in one
 alignment. Rows are grouped into a clade per sample by a synthetic tree, which
-turns on react-msaview's collapse and show-only controls for free.
+turns on react-msaview's collapse and show-only controls for free. [Open this
+one live][tview-demo-fmr1] and those controls are the point: collapse a clade
+and the other two samples close up against each other.
 
 The copy numbers are checkable, which is the point of this locus: FMR1 is on the
 X, so the two male samples come back with one allele each and the mother with
@@ -344,10 +345,12 @@ are three renderings of one window. It needs no network, so `pnpm demos --check`
 runs in Integration on every push, where the measured tables have to wait for
 the weekly Measurements run.
 
-`demos:upload` builds first, then writes `config.json` and `plugin.js` under
-`s3://jbrowse.org/demos/tview/` and invalidates that path. It needs AWS
-credentials for the bucket, so it is a thing a maintainer runs and not a thing
-CI does — and it is the only step between a change here and what the links open.
+`demos:upload` builds first, then writes `config.json`, `plugin.js` and an
+`index.html` under `s3://jbrowse.org/demos/tview/` and invalidates that path.
+The index is only there so the folder itself is a link rather than a 404 for
+whoever trims one of the long ones. It needs AWS credentials for the bucket, so
+it is a thing a maintainer runs and not a thing CI does — and it is the only
+step between a change here and what the links open.
 
 A figure is only as good as what it draws: react-msaview stops drawing tree
 labels below `minLetterRowHeight`, and the copy counts are in those labels, so
