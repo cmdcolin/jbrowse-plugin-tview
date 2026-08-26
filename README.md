@@ -272,7 +272,7 @@ a tview at FMR1 open on load.
 
 Needs a JBrowse build shipping `@jbrowse/core` >=4.3 with MUI 9 — currently
 jbrowse-web nightly. On JBrowse 4.3.0 the bundle fails to load, because
-react-msaview 5.x needs `@jbrowse/mobx-state-tree` 5.13 APIs and MUI 9 icon
+react-msaview 6.x needs `@jbrowse/mobx-state-tree` 5.13 APIs and MUI 9 icon
 internals that the 4.3.0 release does not ship.
 
 ## Development

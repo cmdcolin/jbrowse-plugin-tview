@@ -6,7 +6,7 @@ See `../CLAUDE.md` for the publishing rules that apply to every plugin here.
 
 This plugin targets **JBrowse v5+ only**, and its stack is already v5-shaped:
 `@jbrowse/mobx-state-tree@6`, `mobx@7`, `mobx-react@10` — which is also what
-`react-msaview@5.7.1` declares as peers.
+`react-msaview@6.1.1` declares as peers.
 
 `@jbrowse/core@4.3.0` is still the newest published core, and it depends on
 `@jbrowse/mobx-state-tree@^5.6.0` / `mobx@^6.15.3`. Without pinning, both mst

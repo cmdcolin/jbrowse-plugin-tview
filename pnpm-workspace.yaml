@@ -1,4 +1,4 @@
-# @jbrowse/core 4.3.0 still depends on mst 5 / mobx 6, but react-msaview 5.7.1
+# @jbrowse/core 4.3.0 still depends on mst 5 / mobx 6, but react-msaview 6.1.1
 # (and jbrowse v5, which this plugin targets) are on mst 6 / mobx 7. Without
 # these, both majors land in the tree and every model type crossing the
 # @jbrowse/core boundary fails to typecheck as a nominal v5-vs-v6 mismatch.
@@ -16,4 +16,4 @@ minimumReleaseAgeExclude:
   - '@jbrowse/mobx-state-tree'
   - 'react-msaview'
   - 'msa-parsers'
-  - '@jbrowse/svgcanvas@5.6.1'
+  - '@jbrowse/svgcanvas'
