@@ -85,7 +85,7 @@
         "displayName": "FMR1 (CGG)n",
         "connectedViewId": "repeats_lgv",
         "colWidth": 6,
-        "rowHeight": 6,
+        "rowHeight": 8,
         "labelsAlignRight": true,
         "colorSchemeName": "jbrowse_dna",
         "drawTree": true,

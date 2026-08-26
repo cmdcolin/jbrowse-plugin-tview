@@ -17,7 +17,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { captureFigures, writeAdhocConfig } from './lib/capture.mjs'
+import {
+  LABELLED_ROW_HEIGHT,
+  captureFigures,
+  writeAdhocConfig,
+} from './lib/capture.mjs'
 import { GENOME, LOCI, TRIO, TRIO_REPORT_ORDER } from './lib/giabTrio.mjs'
 import { measureLoci } from './lib/measure.mjs'
 
@@ -165,7 +169,12 @@ if (args.figure) {
   // sized to them rather than started at a default and grown from the outside.
   const { failed } = await captureFigures(
     measurements.map((m, i) => {
-      const rowHeight = Math.min(20, Math.max(6, Math.round(700 / m.rows)))
+      // the floor is the height a row keeps its label at, not the height a row
+      // is legible at: the label is where the copy count is
+      const rowHeight = Math.min(
+        20,
+        Math.max(LABELLED_ROW_HEIGHT, Math.round(700 / m.rows)),
+      )
       const colWidth = Math.min(8, Math.max(1, Math.floor(2400 / m.columns)))
       return {
         name: m.locus.name,

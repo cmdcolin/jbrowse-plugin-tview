@@ -32,6 +32,19 @@ import puppeteer from 'puppeteer'
 // silently.
 const MIN_ROWS_PER_COLUMN = 2
 
+/**
+ * Shortest row that still carries its label.
+ *
+ * react-msaview draws neither tree labels nor residue letters below
+ * `minLetterRowHeight`, which is 8 — a performance floor 6.0 introduced and
+ * 5.x had no equivalent of. The README's figures were authored at 6, and the
+ * bump took the copy counts off three of them without failing anything: the
+ * rows, the columns and the alignment were all still right, and only the
+ * labels — which are the measurement — were gone. Hence the warning below,
+ * which asks the view what it drew rather than trusting this number.
+ */
+export const LABELLED_ROW_HEIGHT = 8
+
 const VIEWPORT = { width: 1400, height: 1100, deviceScaleFactor: 2 }
 
 // Every figure is grown from VIEWPORT to whatever its alignment needs, and this
@@ -231,11 +244,26 @@ async function capture(page, figure, { port }) {
       columns: view.rows[0]?.[1].length,
       hidden: view.blanks.length,
       labels: view.rows.slice(0, 4).map(r => r[0]),
+      // what the view is actually drawing, which is not what the settings
+      // asked for: react-msaview stops drawing residue letters and tree labels
+      // below a cell size and does it silently. Asked of the view rather than
+      // recomputed here, so the next time those floors move this reports it
+      // instead of quietly producing a figure with no copy counts in it
+      showsLetters: view.showMsaLetters,
+      showsLabels: view.showTreeText,
     }
   }, MIN_ROWS_PER_COLUMN)
   console.log(
-    `  ${report.rows} rows x ${report.columns} columns (${report.hidden} hidden as under ${MIN_ROWS_PER_COLUMN} rows); top labels: ${report.labels.join(', ')}`,
+    `  ${report.rows} rows x ${report.columns} columns (${report.hidden} hidden as under ${MIN_ROWS_PER_COLUMN} rows)` +
+      `; letters ${report.showsLetters ? 'on' : 'off'}; top labels: ${report.labels.join(', ')}`,
   )
+  // Every figure here is of its copy counts, and the copy counts are in the row
+  // labels. A figure without them looks finished and says nothing.
+  if (!report.showsLabels) {
+    console.log(
+      `  WARNING: no row labels at rowHeight ${figure.rowHeight}, so no copy counts are on this figure`,
+    )
+  }
 
   // The window is where a figure loses its subject, in both directions: the
   // alignment scrolls sideways inside the view, the view is one of a stack

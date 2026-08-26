@@ -5,6 +5,7 @@
  * are the same definition — the numbers the README states about a figure are of
  * the window the figure is of.
  */
+import { LABELLED_ROW_HEIGHT } from './capture.mjs'
 import { GENOME, TRIO } from './giabTrio.mjs'
 
 const ALL = TRIO.map(t => t.id)
@@ -36,7 +37,7 @@ export const FIGURES = [
     refName: 'X',
     tracks: ALL,
     colWidth: 6,
-    rowHeight: 6,
+    rowHeight: LABELLED_ROW_HEIGHT,
     treeAreaWidth: 330,
   },
   {
@@ -46,7 +47,7 @@ export const FIGURES = [
     refName: '4',
     tracks: ALL,
     colWidth: 6,
-    rowHeight: 6,
+    rowHeight: LABELLED_ROW_HEIGHT,
     treeAreaWidth: 330,
   },
   {
@@ -56,7 +57,7 @@ export const FIGURES = [
     refName: '14',
     tracks: ALL,
     colWidth: 7,
-    rowHeight: 6,
+    rowHeight: LABELLED_ROW_HEIGHT,
     treeAreaWidth: 330,
   },
   {
