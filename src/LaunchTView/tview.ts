@@ -85,10 +85,16 @@ export interface ColumnLayout {
    */
   offsets: number[]
   totalColumns: number
-}
-
-function arrayStartIndex(arrays: ArrayBlock[]) {
-  return new Map(arrays.map(a => [a.start, a]))
+  /** the array beginning at a position, for the positions one begins at */
+  arrayByStart: Map<number, ArrayBlock>
+  /**
+   * Ascending, the positions a row cannot be laid out in bulk over: an array
+   * block starts here, or some read inserts here. Between two of them every
+   * position is one reference column, so that stretch of a row is a slice of
+   * the read's own bases rather than a walk over them — which is what keeps
+   * rendering proportional to the indels in a region rather than to its width.
+   */
+  breaks: number[]
 }
 
 /**
@@ -103,15 +109,17 @@ export function buildColumnLayout(
   insWidths: Map<number, number>,
   arrays: ArrayBlock[] = [],
 ): ColumnLayout {
-  const byStartPos = arrayStartIndex(arrays)
+  const arrayByStart = new Map(arrays.map(a => [a.start, a]))
   const offsets: number[] = []
+  const breaks: number[] = []
   let col = 0
   let pos = start
   while (pos < end) {
-    const array = byStartPos.get(pos)
+    const array = arrayByStart.get(pos)
     if (array) {
       const stop = Math.min(array.end, end)
       offsets.push(col)
+      breaks.push(pos)
       col += array.width
       for (let p = pos + 1; p < stop; p++) {
         offsets.push(col)
@@ -119,12 +127,40 @@ export function buildColumnLayout(
       pos = stop
     } else {
       offsets.push(col)
-      col += (insWidths.get(pos) ?? 0) + 1
+      const width = insWidths.get(pos) ?? 0
+      if (width) {
+        breaks.push(pos)
+      }
+      col += width + 1
       pos++
     }
   }
   offsets.push(col)
-  return { start, end, insWidths, arrays, offsets, totalColumns: col }
+  return {
+    start,
+    end,
+    insWidths,
+    arrays,
+    offsets,
+    totalColumns: col,
+    arrayByStart,
+    breaks,
+  }
+}
+
+/** index of the first break at or after `pos` */
+function breakIndex(breaks: number[], pos: number) {
+  let lo = 0
+  let hi = breaks.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (breaks[mid]! < pos) {
+      lo = mid + 1
+    } else {
+      hi = mid
+    }
+  }
+  return lo
 }
 
 /** the array covering `pos`, when `pos` is strictly inside one */
@@ -136,14 +172,17 @@ function arrayContaining(arrays: ArrayBlock[], pos: number) {
  * Lays a single row out across the whole region. Rows are typically a tiny
  * fraction of the region, so the columns on either side are filled in one shot
  * from the offsets rather than walked position by position — which works over
- * array blocks too, since the offsets already carry their width.
+ * array blocks too, since the offsets already carry their width. Inside its own
+ * span a row is walked only at the layout's breaks, and copied straight out of
+ * `refChars` between them.
  */
 export function renderRow(read: ReadLayout, layout: ColumnLayout) {
   const { start, end, insWidths, arrays, offsets, totalColumns } = layout
-  const byStartPos = arrayStartIndex(arrays)
+  const { arrayByStart, breaks } = layout
   // a trailing insertion is keyed one past the last position the read spans
+  const lastPos = read.start + read.refChars.length
   let from = Math.max(start, read.start)
-  let to = Math.min(end, read.start + read.refChars.length + 1)
+  let to = Math.min(end, lastPos + 1)
   // a row that begins or ends inside an array does not span it, so it gets no
   // block; snapping past the block keeps the walk from emitting part of one
   const startsInside = arrayContaining(arrays, from)
@@ -160,26 +199,36 @@ export function renderRow(read: ReadLayout, layout: ColumnLayout) {
 
   let ret = ABSENT.repeat(offsets[from - start]!)
   let pos = from
+  let next = breakIndex(breaks, from)
   while (pos < to) {
-    const array = byStartPos.get(pos)
+    while (next < breaks.length && breaks[next]! < pos) {
+      next++
+    }
+    const stop = Math.min(next < breaks.length ? breaks[next]! : to, to)
+    if (stop > pos) {
+      // the walk never leaves the read's own bases except at its very last
+      // position, which is the slot a trailing insertion is keyed in
+      const cut = Math.min(stop, lastPos)
+      ret += read.refChars.slice(pos - read.start, cut - read.start)
+      ret += ABSENT.repeat(stop - cut)
+      pos = stop
+      continue
+    }
+    const array = arrayByStart.get(pos)
     if (array) {
-      const row = array.rowByName.get(read.name)
-      ret += row ?? SPANNED_GAP.repeat(array.width)
+      // a row with no allele here did not reach both edges of the array, or
+      // skipped it through an N — either way it is not here, and a block of
+      // deletion gaps would read as an allele it does not have
+      ret += array.rowByName.get(read.name) ?? ABSENT.repeat(array.width)
       pos = Math.min(array.end, to)
       continue
     }
-    const idx = pos - read.start
-    const spanned = idx >= 0 && idx < read.refChars.length
-    const refChar = spanned ? read.refChars[idx]! : ABSENT
-    const width = insWidths.get(pos) ?? 0
-    if (width) {
-      // a read that is not really here pads the insertion the same way it
-      // pads the reference column, so an intron reads as one absence
-      const pad = refChar === ABSENT ? ABSENT : SPANNED_GAP
-      const ins = read.insertions.get(pos) ?? ''
-      ret += ins + pad.repeat(width - ins.length)
-    }
-    ret += refChar
+    const refChar = pos < lastPos ? read.refChars[pos - read.start]! : ABSENT
+    // a read that is not really here pads the insertion the same way it pads
+    // the reference column, so an intron reads as one absence
+    const pad = refChar === ABSENT ? ABSENT : SPANNED_GAP
+    const ins = read.insertions.get(pos) ?? ''
+    ret += ins + pad.repeat(insWidths.get(pos)! - ins.length) + refChar
     pos++
   }
   return ret + ABSENT.repeat(totalColumns - offsets[to - start]!)

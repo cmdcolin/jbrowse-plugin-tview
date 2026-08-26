@@ -442,14 +442,21 @@ export function alignPeriodicInsertions(
  * which is a guess that one chimeric read overturns for the whole site. Measured
  * off the reference, it is a property of the locus, so every read is laid out
  * against the same unit whatever the reads happen to be.
+ *
+ * An empty sequence is one of the alleles, not a missing one: a row that
+ * deletes the whole array carries nought copies of it, which is a measurement
+ * and the most extreme contraction there is. It splits into no units and so
+ * lays out as a row of gaps the width of the block, which is what a deletion
+ * should look like. Dropping it instead left that row indistinguishable from
+ * one that never reached the array at all.
  */
 export function alignToUnit(
   seqs: string[],
   consensus: string,
 ): PeriodicAlignment | undefined {
-  const distinct = [...new Set(seqs)].filter(s => s.length > 0)
+  const distinct = [...new Set(seqs)]
   const period = consensus.length
-  if (!distinct.length || period < MIN_UNIT_PERIOD) {
+  if (!distinct.some(s => s.length) || period < MIN_UNIT_PERIOD) {
     return undefined
   }
 

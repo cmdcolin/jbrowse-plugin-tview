@@ -411,6 +411,64 @@ describe('planTviewMsa on a reference tandem array', () => {
   })
 })
 
+describe('rows at an array block that carry no copies of it', () => {
+  const UNIT = 'CAG'
+  const FLANK = 'TTGCAGGATC'
+  const REF_COPIES = 10
+  const START = 100
+  const ARRAY_BP = REF_COPIES * UNIT.length
+  const sequence = FLANK + UNIT.repeat(REF_COPIES) + FLANK
+
+  const plan = planTviewMsa({
+    features: [
+      feature({
+        name: 'deleted',
+        start: START,
+        CIGAR: `${FLANK.length}M${ARRAY_BP}D${FLANK.length}M`,
+        seq: FLANK + FLANK,
+      }),
+      feature({
+        name: 'introned',
+        start: START,
+        CIGAR: `${FLANK.length}M${ARRAY_BP}N${FLANK.length}M`,
+        seq: FLANK + FLANK,
+      }),
+      feature({
+        name: 'stops_one_short',
+        start: START,
+        CIGAR: `${FLANK.length + ARRAY_BP - 1}M`,
+        seq: sequence.slice(0, FLANK.length + ARRAY_BP - 1),
+      }),
+    ],
+    refName: 'chr1',
+    start: START,
+    end: START + sequence.length,
+    sequence,
+  })
+  const block = plan.subject!
+  const rendered = new Map(rows(renderTviewMsa(plan)))
+  const atBlock = (defline: string) =>
+    rendered.get(defline)!.slice(FLANK.length, FLANK.length + block.width)
+
+  it('measures a row that deletes the whole array as nought copies', () => {
+    // the most contracted allele there is, and a measurement like any other —
+    // dropping it left the row indistinguishable from one that never got here
+    expect(block.copiesByName.get('deleted')).toBe(0)
+    expect(block.lengthByName.get('deleted')).toBe(0)
+    expect(atBlock('deleted|n=0')).toBe('-'.repeat(block.width))
+  })
+
+  it('measures nothing for a row that skips the array through an N', () => {
+    expect(block.copiesByName.has('introned')).toBe(false)
+    expect(block.copiesByName.has('stops_one_short')).toBe(false)
+  })
+
+  it('renders a row it could not measure as absent, not as a deletion', () => {
+    expect(atBlock('introned')).toBe('.'.repeat(block.width))
+    expect(atBlock('stops_one_short')).toBe('.'.repeat(block.width))
+  })
+})
+
 describe('renderedColToMsaCol', () => {
   it('is the identity when nothing is hidden', () => {
     expect([0, 1, 2].map(c => renderedColToMsaCol([], c))).toEqual([0, 1, 2])
