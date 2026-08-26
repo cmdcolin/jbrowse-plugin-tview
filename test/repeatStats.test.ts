@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { alleleModes, tally } from '../src/LaunchTView/repeatStats'
+import {
+  alleleModes,
+  summarizePlan,
+  tally,
+} from '../src/LaunchTView/repeatStats'
+import { planTviewMsa } from '../src/LaunchTView/tview'
+
+import type { AlignmentFeature } from '../src/LaunchTView/tview'
 
 /** `n` reads at each of the given copy counts */
 function reads(...groups: [copies: number, n: number][]) {
@@ -56,5 +63,45 @@ describe('alleleModes', () => {
 
   it('never calls an allele on one read', () => {
     expect(alleleModes([7])).toEqual([])
+  })
+})
+
+describe('summarizePlan', () => {
+  const FLANK = 'TTGCAGGATC'
+  const sequence = `${FLANK}${'CAG'.repeat(10)}${FLANK}`
+  const sample = 'HG004 (mother)'
+
+  /** four reads carrying the reference allele, all from one sample */
+  function planForSample() {
+    const features: AlignmentFeature[] = [0, 1, 2, 3].map(i => {
+      const f: Record<string, unknown> = {
+        name: `read${i}`,
+        start: 0,
+        CIGAR: `${sequence.length}M`,
+        seq: sequence,
+        flags: 0,
+      }
+      return { get: (key: string) => f[key] }
+    })
+    return planTviewMsa({
+      features,
+      refName: 'chr1',
+      start: 0,
+      end: sequence.length,
+      sequence,
+      sampleOf: () => sample,
+    })
+  }
+
+  it('finds a sample whose name Newick-sanitizing rewrote', () => {
+    // rows are prefixed with the safe form, so matching on the name as given
+    // found none of them — and nought spanning reads is what an unsequenced
+    // locus looks like, not what a track called `HG004 (mother)` should
+    const [array] = summarizePlan(planForSample(), [sample]).arrays
+    expect(array!.samples[0]).toMatchObject({
+      sample,
+      spanning: 4,
+      modes: [{ value: 10, reads: 4 }],
+    })
   })
 })
