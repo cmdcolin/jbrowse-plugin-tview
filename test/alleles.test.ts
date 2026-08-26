@@ -190,9 +190,7 @@ describe('reanchorInsertions', () => {
     expect(after.copiesByName.get('expanded')).toBe(17)
     // and the interval did not move, so no other row paid for it — which is
     // what keeps a reference copy count from drifting with the reads
-    expect(after.copiesByName.get('ref')).toBe(
-      before.copiesByName.get('ref')!,
-    )
+    expect(after.copiesByName.get('ref')).toBe(before.copiesByName.get('ref')!)
     expect(after.lengthByName.get('ref')).toBe(before.lengthByName.get('ref')!)
   })
 })

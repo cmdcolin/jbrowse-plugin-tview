@@ -277,7 +277,9 @@ export function reanchorInsertions(
       const at = target ?? pos
       moved ||= target !== undefined
       const seq =
-        target === undefined ? ins : (shiftInsertion(read, pos, target, ins) ?? ins)
+        target === undefined
+          ? ins
+          : (shiftInsertion(read, pos, target, ins) ?? ins)
       next.set(at, (next.get(at) ?? '') + seq)
     }
     return moved ? { ...read, insertions: next } : read

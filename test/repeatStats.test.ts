@@ -4,7 +4,9 @@ import { alleleModes, tally } from '../src/LaunchTView/repeatStats'
 
 /** `n` reads at each of the given copy counts */
 function reads(...groups: [copies: number, n: number][]) {
-  return groups.flatMap(([copies, n]) => Array.from({ length: n }, () => copies))
+  return groups.flatMap(([copies, n]) =>
+    Array.from({ length: n }, () => copies),
+  )
 }
 
 const values = (ts: { value: number }[]) => ts.map(t => t.value)
