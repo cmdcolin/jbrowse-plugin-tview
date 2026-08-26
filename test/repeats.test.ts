@@ -96,6 +96,19 @@ describe('mergeArrays', () => {
     expect(merged[0]!.end).toBe(556)
   })
 
+  it('keeps a group open past a member that ends inside an earlier one', () => {
+    // sorting by start says nothing about where a group reaches: the 3bp array
+    // nested inside the long one ends at 20, and the third array still overlaps
+    // the group. Closing on the last member's end would split them
+    const merged = mergeArrays([
+      { start: 0, end: 100, period: 2, unit: 'AT' },
+      { start: 10, end: 20, period: 3, unit: 'CAG' },
+      { start: 90, end: 150, period: 4, unit: 'ACGT' },
+    ])
+    expect(merged).toHaveLength(1)
+    expect(merged[0]!.end).toBe(150)
+  })
+
   it('does not let a short microsatellite rename a VNTR it overlaps', () => {
     const merged = mergeArrays([
       { start: 100, end: 400, period: 30, unit: 'G'.repeat(30) },

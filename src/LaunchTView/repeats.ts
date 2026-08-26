@@ -194,14 +194,16 @@ const RIVAL_SPAN_FRACTION = 0.5
  */
 export function mergeArrays(arrays: ReferenceArray[], gap = 0) {
   const groups: ReferenceArray[][] = []
+  // how far right the open group reaches, which is not its last member's end:
+  // sorting by start lets a long array be followed by one that ends inside it
+  let reach = -Infinity
   for (const array of [...arrays].sort((a, b) => a.start - b.start)) {
-    const last = groups.at(-1)
-    const end = last ? Math.max(...last.map(a => a.end)) : 0
-    if (last && array.start <= end + gap) {
-      last.push(array)
+    if (array.start <= reach + gap) {
+      groups.at(-1)!.push(array)
     } else {
       groups.push([array])
     }
+    reach = Math.max(reach, array.end)
   }
   return groups.map(group => {
     const span = (a: ReferenceArray) => a.end - a.start
