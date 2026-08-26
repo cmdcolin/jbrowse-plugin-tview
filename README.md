@@ -36,14 +36,19 @@ count.
 
 <!-- /demo-links -->
 
-Each one is the same session spec the figure further down was taken from, so a
-link opens what the screenshot beside it is of. They load
+**JBrowse will ask before it loads the plugin** — a config from another origin
+naming a UMD bundle is exactly what that prompt is for, and it names the
+jsDelivr url so you can see what you are agreeing to. Say yes and the view
+builds; the reads then take a few seconds, since they arrive by range request
+and the alignment is built in a worker.
+
+Each link is the same session spec the figure further down was taken from, so it
+opens what the screenshot beside it is of. They load
 [`public/demo.json`](public/demo.json) into
 [JBrowse Web nightly](https://jbrowse.org/code/jb2/main/) — the nightly because
 `@jbrowse/core` 4.3.0 does not ship the MUI 9 internals this bundle needs — and
 take the plugin from npm, so what they run is the **published** release rather
-than this working tree. Give the reads a few seconds: they arrive by range
-request and the alignment is built in a worker.
+than this working tree.
 
 ## Gallery
 
