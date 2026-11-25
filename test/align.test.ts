@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  alignInsertions,
+  alignInsertionSite,
   alignPeriodicInsertions,
   consensusUnit,
   detectPeriod,
@@ -15,7 +15,97 @@ function widths(result: Map<string, string>) {
 // a 30bp VNTR-like unit
 const UNIT = 'CCTCCTGGGTTCAAGCGATTCTCCTGCCTC'
 
-describe('alignInsertions', () => {
+function random(seed: number) {
+  let state = seed
+  return () => {
+    state = (state + 0x6d2b79f5) | 0
+    let t = Math.imul(state ^ (state >>> 15), 1 | state)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+function randomSeq(rand: () => number, length: number) {
+  return Array.from({ length }, () => 'ACGT'[Math.floor(rand() * 4)]).join('')
+}
+
+/** `seq` with substitutions, deletions and insertions at `rate` between them */
+function noisy(rand: () => number, seq: string, rate: number) {
+  let ret = ''
+  for (const base of seq) {
+    const r = rand() / rate
+    ret +=
+      r < 0.4
+        ? randomSeq(rand, 1)
+        : r < 0.7
+          ? ''
+          : r < 1
+            ? base + randomSeq(rand, 1)
+            : base
+  }
+  return ret
+}
+
+/** the first row's character in every column where the two rows differ */
+function differing(a: string, b: string) {
+  let ret = ''
+  for (let i = 0; i < a.length; i++) {
+    ret += a[i] === b[i] ? '' : a[i]
+  }
+  return ret
+}
+
+/** columns where both rows carry a base and the bases differ */
+function mismatches(a: string, b: string) {
+  let ret = 0
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== '-' && b[i] !== '-' && a[i] !== b[i]) {
+      ret++
+    }
+  }
+  return ret
+}
+
+/** the textbook full-matrix global alignment, gaps placed as far right as they go */
+function needlemanWunsch(a: string, b: string) {
+  const score = Array.from({ length: a.length + 1 }, (_, i) =>
+    Array.from({ length: b.length + 1 }, (_, j) => -3 * (i + j)),
+  )
+  const step = (i: number, j: number) =>
+    score[i - 1]![j - 1]! + (a[i - 1] === b[j - 1] ? 2 : -2)
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      score[i]![j] = Math.max(
+        step(i, j),
+        score[i - 1]![j]! - 3,
+        score[i]![j - 1]! - 3,
+      )
+    }
+  }
+  let center = ''
+  let other = ''
+  let i = a.length
+  let j = b.length
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && score[i]![j] === step(i, j)) {
+      center = a[--i]! + center
+      other = b[--j]! + other
+    } else if (i > 0 && score[i]![j] === score[i - 1]![j]! - 3) {
+      center = a[--i]! + center
+      other = `-${other}`
+    } else {
+      center = `-${center}`
+      other = b[--j]! + other
+    }
+  }
+  return { center, other }
+}
+
+function alignInsertions(seqs: string[]) {
+  return alignInsertionSite(seqs).gapped
+}
+
+describe('alignInsertionSite', () => {
   it('declines when there is nothing to align', () => {
     expect(alignInsertions([]).size).toBe(0)
     expect(alignInsertions(['ACGT', 'ACGT']).size).toBe(0)
@@ -53,18 +143,88 @@ describe('alignInsertions', () => {
     }
   })
 
-  it('declines sites too large to be worth aligning', () => {
-    const long = 'A'.repeat(201)
-    expect(alignInsertions([long, `${long}A`]).size).toBe(0)
-    expect(
-      alignInsertions(Array.from({ length: 31 }, (_, i) => 'A'.repeat(i + 1)))
-        .size,
-    ).toBe(0)
+  it('aligns a 250bp insertion whose copies differ by one deleted base', () => {
+    const ins = randomSeq(random(1), 250)
+    const shorter = ins.slice(0, 120) + ins.slice(121)
+    const result = alignInsertions([ins, shorter])
+    expect(mismatches(result.get(ins)!, result.get(shorter)!)).toBe(0)
+    expect(result.get(shorter)!.replaceAll('-', '')).toBe(shorter)
   })
 
-  it('lays a tandem array out unit-per-block, past both size caps', () => {
-    // 450bp and 600bp are both over MAX_LEN, and the aperiodic path declines
-    // them; the array is the case that layout exists for
+  it('aligns a pair of 6kb insertions differing by a handful of indels quickly', () => {
+    const rand = random(2)
+    const ins = randomSeq(rand, 6000)
+    const edited =
+      ins.slice(0, 1000) +
+      ins.slice(1003, 2500) +
+      'GATTACA' +
+      ins.slice(2500, 4000) +
+      ins.slice(4001, 5200) +
+      'TT' +
+      ins.slice(5200)
+    const t0 = performance.now()
+    const result = alignInsertions([ins, edited])
+    expect(performance.now() - t0).toBeLessThan(500)
+    expect(result.size).toBe(2)
+    expect(mismatches(result.get(ins)!, result.get(edited)!)).toBe(0)
+  })
+
+  it('aligns 300 reads of a noisy 300bp insertion', () => {
+    const rand = random(3)
+    const ins = randomSeq(rand, 300)
+    const reads = Array.from({ length: 300 }, () => noisy(rand, ins, 0.1))
+    const result = alignInsertions(reads)
+    expect(result.size).toBe(new Set(reads).size)
+    expect(widths(result).size).toBe(1)
+    for (const [raw, gapped] of result) {
+      expect(gapped.replaceAll('-', '')).toBe(raw)
+    }
+  })
+
+  it('declines a site whose alignment would exceed the budget', () => {
+    const rand = random(4)
+    const result = alignInsertions([
+      randomSeq(rand, 10_000),
+      randomSeq(rand, 10_000),
+    ])
+    expect(result.size).toBe(0)
+  })
+
+  it('finds the same alignment the full matrix does', () => {
+    const rand = random(5)
+    for (let trial = 0; trial < 40; trial++) {
+      const center = randomSeq(rand, 20 + Math.floor(rand() * 200))
+      const other = noisy(rand, center, rand() * 0.5)
+      const result = alignInsertions([center, center, other])
+      const expected = needlemanWunsch(center, other)
+      expect(result.get(center)).toBe(expected.center)
+      expect(result.get(other)).toBe(expected.other)
+    }
+  })
+
+  it('aligns against the commonest sequence, not the longest', () => {
+    // with the chimeric read as the center, the two real alleles would each
+    // be aligned against unrelated sequence and drift apart from each other
+    const rand = random(6)
+    const allele = randomSeq(rand, 60)
+    const variant = allele.slice(0, 30) + allele.slice(31)
+    const chimera = allele.slice(0, 20) + randomSeq(rand, 80)
+    const result = alignInsertions([allele, allele, allele, variant, chimera])
+    const a = result.get(allele)!
+    const b = result.get(variant)!
+    expect(differing(a, b)).toBe(allele[30])
+  })
+
+  it('lays a site out the same whatever order its reads arrive in', () => {
+    const rand = random(7)
+    const ins = randomSeq(rand, 80)
+    const reads = Array.from({ length: 12 }, () => noisy(rand, ins, 0.1))
+    const forward = alignInsertions(reads)
+    const backward = alignInsertions([...reads].reverse())
+    expect(Object.fromEntries(backward)).toEqual(Object.fromEntries(forward))
+  })
+
+  it('lays a tandem array out unit-per-block', () => {
     const result = alignInsertions([UNIT.repeat(15), UNIT.repeat(20)])
     expect(result.size).toBe(2)
     expect(widths(result).size).toBe(1)
