@@ -80,8 +80,7 @@ const COPY_PANELS: RowPanelSpec[] = [
   },
   {
     kind: 'text',
-    header: 'n',
-    width: 28,
+    width: 40,
     encoding: { text: { field: 'copies' } },
   },
 ]

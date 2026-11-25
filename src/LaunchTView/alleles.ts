@@ -312,9 +312,9 @@ function walkLeft(read: ReadLayout, pos: number, ins: string, floor: number) {
  * to a target, which is the left-normalization of Tan, Abecasis & Kang. It runs
  * after `reanchorInsertions`, leaves alone any insertion from an array's `start`
  * to its `end` inclusive, and walks none into that span, so no allele an array
- * measures changes. The walk also stops at the region's start, so an insertion
- * in view stays in view, at the read's own start, and at any position where the
- * read has no base. Two insertions of one read that meet keep their order along
+ * measures changes. The walk also stops one base inside the region's start, so
+ * an insertion in view keeps a reference base on both sides of it, at the
+ * read's own start, and at any position where the read has no base. Two insertions of one read that meet keep their order along
  * it.
  */
 export function normalizeInsertions(
@@ -340,7 +340,7 @@ export function normalizeInsertions(
             read,
             pos,
             ins,
-            Math.max(regionStart, read.start, arrayFloor(pos), previous),
+            Math.max(regionStart + 1, read.start, arrayFloor(pos), previous),
           )
       next.set(at, (next.get(at) ?? '') + seq)
       moved ||= at !== pos

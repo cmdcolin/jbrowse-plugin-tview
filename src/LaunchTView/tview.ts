@@ -376,7 +376,9 @@ export function planTviewMsa({
     subject,
     referenceName,
     samples: [
-      ...new Set(parsed.map(r => r.sample).filter(s => s !== undefined)),
+      ...new Set(
+        features.map((_, i) => sampleOf?.(i)).filter(s => s !== undefined),
+      ),
     ],
   }
 }

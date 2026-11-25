@@ -578,6 +578,20 @@ describe('the row table', () => {
     expect(plan.samples).toEqual(['HG002 (son)', 'HG003'])
   })
 
+  it('keeps that order when a later sample has the leftmost read', () => {
+    const ordered = planTviewMsa({
+      features: [
+        feature({ name: 'late', start: 5, CIGAR: '4M', seq: 'ACGT' }),
+        feature({ name: 'early', start: 0, CIGAR: '4M', seq: 'ACGT' }),
+      ],
+      refName: 'ctgA',
+      start: 0,
+      end: 10,
+      sampleOf: i => ['first track', 'second track'][i],
+    })
+    expect(ordered.samples).toEqual(['first track', 'second track'])
+  })
+
   it('leaves copies out where there is no array', () => {
     for (const entry of Object.values(planRowData(plan))) {
       expect(entry).not.toHaveProperty('copies')

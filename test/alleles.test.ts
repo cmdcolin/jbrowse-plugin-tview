@@ -262,9 +262,9 @@ describe('normalizeInsertions', () => {
     expect([...normalized(read).insertions]).toEqual([[5, 'CA']])
   })
 
-  it('stops at the region start', () => {
+  it('stops one base inside the region, so the site has a base either side', () => {
     const read = plain([[10, 'CA']])
-    expect([...normalized(read, [], 7).insertions]).toEqual([[7, 'AC']])
+    expect([...normalized(read, [], 7).insertions]).toEqual([[8, 'CA']])
   })
 
   it('keeps two insertions that meet in read order', () => {
