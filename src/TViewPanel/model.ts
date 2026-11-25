@@ -7,13 +7,20 @@ import { MSAModelF } from 'react-msaview'
 import { hoverPosition, lowerBound } from './genome'
 import { initRegion, initSources, missingTrackIds } from './init'
 import { tviewInitMenuItems } from './initMenu'
+import {
+  MODIFICATION_FILL,
+  modificationAnnotations,
+  modificationMenu,
+} from './modifications'
 import { fetchTviewPlan } from '../LaunchTView/fetchTviewPlan'
 import { MAX_CELLS } from '../LaunchTView/limits'
 import { REFERENCE } from '../LaunchTView/tview'
 
 import type { TviewInit } from './init'
+import type { ModificationSummary } from './modifications'
 import type { TviewPlanResult } from '../LaunchTView/TviewGetPlanRpc/TviewGetPlan'
 import type { FetchRegion, TviewSource } from '../LaunchTView/fetchTviewPlan'
+import type { TviewModifications } from '../LaunchTView/modifications'
 import type { MenuItem } from '@jbrowse/core/ui'
 import type { Instance } from '@jbrowse/mobx-state-tree'
 import type { LinearGenomeViewModel } from '@jbrowse/plugin-linear-genome-view'
@@ -146,6 +153,11 @@ export default function stateModelFactory() {
        * the highlights the last load added, which the next one replaces
        */
       loadedHighlights: [] as Highlight[],
+      /**
+       * #volatile
+       * the base modification calls the last load placed, when its reads had any
+       */
+      loadedModifications: undefined as ModificationSummary | undefined,
     }))
     .views(self => ({
       /**
@@ -321,6 +333,31 @@ export default function stateModelFactory() {
       },
       /**
        * #action
+       * draws a load's base modification calls as annotations, which are
+       * volatile: as many as the cap allows would bloat the session snapshot
+       */
+      setModifications(modifications?: TviewModifications) {
+        if (modifications || self.loadedModifications) {
+          self.setAnnotations(
+            modifications ? modificationAnnotations(modifications) : [],
+          )
+        }
+        if (
+          modifications &&
+          !self.encodings.some(e => e.channel === 'featureFill')
+        ) {
+          self.setEncodings([...self.encodings, MODIFICATION_FILL])
+        }
+        self.loadedModifications = modifications
+          ? {
+              shown: modifications.row.length,
+              dropped: modifications.dropped,
+              unplaced: modifications.unplaced,
+            }
+          : undefined
+      },
+      /**
+       * #action
        * shows a built alignment: its rows, how they are grouped, ordered and
        * marked, and the defaults a view that has not set its own takes
        */
@@ -332,6 +369,7 @@ export default function stateModelFactory() {
         self.loadedRegion = result.region
         self.loadedHighlights = result.highlights
         self.setMSA(result.msa)
+        this.setModifications(result.modifications)
         self.data.setTree(undefined)
         self.setRowData(result.rowData)
         self.setRowTransform(rowTransform(result.samples, bySubject))
@@ -495,9 +533,13 @@ export default function stateModelFactory() {
          * overrides base
          */
         menuItems(): MenuItem[] {
+          const { loadedModifications } = self
           return [
             ...superMenuItems(),
             ...tviewInitMenuItems(self),
+            ...(loadedModifications
+              ? [modificationMenu(loadedModifications, self)]
+              : []),
             {
               label: 'Zoom to base level on click?',
               type: 'checkbox',

@@ -967,3 +967,158 @@ describe('tview plugin in jbrowse-web', () => {
     await page.close()
   }, 180_000)
 })
+
+/** every distinct colour the canvases currently paint, as one string */
+async function canvasColors(page: Page) {
+  return page.evaluate(() => {
+    const seen = new Set<string>()
+    for (const c of document.querySelectorAll('canvas')) {
+      const ctx = c.getContext('2d')
+      if (ctx && c.width && c.height) {
+        const { data } = ctx.getImageData(0, 0, c.width, c.height)
+        for (let i = 0; i < data.length; i += 4) {
+          seen.add(`${data[i]},${data[i + 1]},${data[i + 2]}`)
+        }
+      }
+    }
+    return [...seen].sort().join(' ')
+  })
+}
+
+describe('base modifications', () => {
+  // seven nanopore reads with MM/ML 5mC calls over a 30kb clip of chr20, two
+  // of whose calls in this window sit on inserted bases
+  const METHYLATION_VIEW = {
+    type: 'TView',
+    assembly: 'hg38_clip',
+    loc: '20:13,001..13,400',
+    tracks: ['methylation_clip'],
+  }
+
+  it('annotates modified bases, inserted ones included, and switches the colouring', async () => {
+    const { page, errors } = await openJBrowse([METHYLATION_VIEW])
+    await waitForTView(page)
+    const state = await page.evaluate(() => {
+      const v = window.JBrowseSession.views.find(
+        (x: { type: string }) => x.type === 'TView',
+      )
+      const reference = v.rowSequence('reference')
+      const cells = v.annotations.map(
+        (a: { id: string; start: number; description: string }) => {
+          const column = v.seqPosToVisibleCol(a.id, a.start - 1)
+          return {
+            row: a.id,
+            column,
+            description: a.description,
+            letter: v.visibleColToRowLetter(a.id, column),
+            inserted: reference[v.visibleColToGlobalCol(column)] === '-',
+          }
+        },
+      )
+      const onInsertion = cells.find((c: { inserted: boolean }) => c.inserted)
+      v.setMousePos(onInsertion.column, v.rowNames.indexOf(onInsertion.row))
+      return {
+        cells,
+        onInsertion,
+        hoveredCell: v.hoveredCell,
+        hoveredAnnotations: v.mouseOverDomains.map(
+          (a: { description: string }) => a.description,
+        ),
+        encodings: [...v.encodings],
+        field: v.resolvedResidueColor.field,
+        menu: v
+          .menuItems()
+          .find((i: { label: string }) => i.label === 'Base modifications')
+          ?.subMenu.map((i: { label: string }) => i.label),
+        snapshotBytes: JSON.stringify(v).length,
+      }
+    })
+    expect(state.cells.length).toBe(12)
+    expect(
+      state.cells.filter((c: { letter: string }) => !/^[CG]$/.test(c.letter)),
+    ).toEqual([])
+    expect(state.hoveredCell).toMatchObject({
+      row: state.onInsertion.row,
+      letter: state.onInsertion.letter,
+    })
+    expect(state.hoveredAnnotations).toEqual([state.onInsertion.description])
+    expect(state.onInsertion.description).toMatch(/^5mC \d+%$/)
+    expect(state.encodings).toMatchObject([
+      { channel: 'featureFill', field: 'probability' },
+    ])
+    expect(state.field).toBe('residue')
+    expect(state.menu).toEqual(['Color by bases', 'Color by modification'])
+    expect(state.snapshotBytes).toBeLessThan(20_000)
+
+    await page.waitForFunction(
+      () =>
+        window.JBrowseSession.views.find(
+          (x: { type: string }) => x.type === 'TView',
+        )?.viewInitialized,
+      { timeout: 60_000 },
+    )
+    // letter zoom, scrolled to the inserted modified base
+    const height = await page.evaluate(column => {
+      const v = window.JBrowseSession.views.find(
+        (x: { type: string }) => x.type === 'TView',
+      )
+      v.setMousePos(undefined)
+      v.setColWidth(12)
+      v.setScrollX(-Math.max(0, (column - 40) * 12))
+      v.setHeight(v.rowNames.length * v.rowHeight + 200)
+      return v.height
+    }, state.onInsertion.column)
+    await page.setViewport({ width: 1400, height: height + 250 })
+    await new Promise(r => setTimeout(r, 1000))
+    const byBases = await canvasColors(page)
+    await screenshot(page, '09-modifications-by-bases')
+
+    await page.evaluate(() => {
+      const v = window.JBrowseSession.views.find(
+        (x: { type: string }) => x.type === 'TView',
+      )
+      v.menuItems()
+        .find((i: { label: string }) => i.label === 'Base modifications')
+        .subMenu.find(
+          (i: { label: string }) => i.label === 'Color by modification',
+        )
+        .onClick()
+    })
+    await new Promise(r => setTimeout(r, 1000))
+    const field = await page.evaluate(
+      () =>
+        window.JBrowseSession.views.find(
+          (x: { type: string }) => x.type === 'TView',
+        ).resolvedResidueColor.field,
+    )
+    expect(field).toBe('feature')
+    expect(await canvasColors(page)).not.toBe(byBases)
+    await screenshot(page, '10-modifications-by-modification')
+    expect(errors.filter(e => /TView|tview/i.test(e))).toEqual([])
+    await page.close()
+  }, 180_000)
+
+  it('offers no modification menu over reads without MM tags', async () => {
+    const { page } = await openJBrowse([
+      {
+        type: 'TView',
+        assembly: 'volvox',
+        loc: 'ctgA:15100..15250',
+        tracks: ['volvox_bam'],
+      },
+    ])
+    await waitForTView(page)
+    const state = await page.evaluate(() => {
+      const v = window.JBrowseSession.views.find(
+        (x: { type: string }) => x.type === 'TView',
+      )
+      return {
+        menuLabels: v.menuItems().map((i: { label: string }) => i.label),
+        annotations: v.annotations.length,
+      }
+    })
+    expect(state.menuLabels).not.toContain('Base modifications')
+    expect(state.annotations).toBe(0)
+    await page.close()
+  }, 180_000)
+})

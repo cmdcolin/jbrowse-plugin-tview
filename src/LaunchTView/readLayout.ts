@@ -1,7 +1,9 @@
 /** the subset of an @jbrowse/core Feature that the layout reads */
 export interface AlignmentFeature {
-  get: (key: string) => any
+  get: (key: string) => unknown
 }
+
+const text = (value: unknown) => (typeof value === 'string' ? value : '')
 
 /**
  * Only '-' and '.' are treated as gaps by react-msaview (anything else counts
@@ -15,6 +17,7 @@ export interface AlignmentFeature {
  */
 export const SPANNED_GAP = '-'
 export const ABSENT = '.'
+export const GAPS = /[-.]/g
 
 export interface ReadLayout {
   /**
@@ -30,6 +33,20 @@ export interface ReadLayout {
   refChars: string
   /** reference position -> bases inserted immediately before that position */
   insertions: Map<number, string>
+  /** where the row's bases came from in the read, for a row parsed from one */
+  query?: ReadQuery
+}
+
+/**
+ * The read's own sequence, SEQ as the file stores it, and enough of its CIGAR
+ * to find any base of the row in it: the query index of the first base at
+ * `start`, and how many bases the aligner inserted before each position. Kept
+ * as parsed, since the layout later moves and drops insertions.
+ */
+export interface ReadQuery {
+  seq: string
+  offset: number
+  inserted: Map<number, number>
 }
 
 const cigarRegex = /([MIDNSHPX=])/
@@ -45,16 +62,21 @@ export function parseRead(
   name: string,
   sample?: string,
 ): ReadLayout {
-  const seq = feature.get('seq') as string
-  const ops = parseCigar(feature.get('CIGAR') as string)
-  const start = feature.get('start')
+  const seq = text(feature.get('seq'))
+  const ops = parseCigar(text(feature.get('CIGAR')))
+  const start = Number(feature.get('start'))
   const insertions = new Map<number, string>()
+  const inserted = new Map<number, number>()
   let refChars = ''
   let seqOffset = 0
+  let offset: number | undefined
 
   for (let i = 0; i < ops.length; i += 2) {
     const len = +ops[i]!
     const op = ops[i + 1]!
+    if (op !== 'S' && op !== 'H' && op !== 'P') {
+      offset ??= seqOffset
+    }
     if (op === 'S') {
       seqOffset += len
     } else if (op === 'I') {
@@ -62,6 +84,7 @@ export function parseRead(
       const pos = start + refChars.length
       const prev = insertions.get(pos) ?? ''
       insertions.set(pos, prev + seq.slice(seqOffset, seqOffset + len))
+      inserted.set(pos, (inserted.get(pos) ?? 0) + len)
       seqOffset += len
     } else if (op === 'D') {
       refChars += SPANNED_GAP.repeat(len)
@@ -79,7 +102,25 @@ export function parseRead(
     start,
     refChars,
     insertions,
+    query: { seq, offset: offset ?? seqOffset, inserted },
   }
+}
+
+/**
+ * The query index of the first base a parsed read has at or after reference
+ * position `pos`, counting what it inserted at `pos` itself as coming first.
+ */
+export function queryIndexAt(read: ReadLayout, query: ReadQuery, pos: number) {
+  const aligned = read.refChars
+    .slice(0, Math.max(0, pos - read.start))
+    .replaceAll(GAPS, '').length
+  let insertedBefore = 0
+  for (const [at, len] of query.inserted) {
+    if (at < pos) {
+      insertedBefore += len
+    }
+  }
+  return query.offset + aligned + insertedBefore
 }
 
 /**
@@ -116,7 +157,8 @@ export function getReadNames(
 ) {
   const taken = new Set(reserved)
   return features.map(f => {
-    const base = `${String(f.get('name')).replaceAll(/\s+/g, '_')}${mateSuffix(f.get('flags'))}`
+    const flags = f.get('flags')
+    const base = `${String(f.get('name')).replaceAll(/\s+/g, '_')}${mateSuffix(typeof flags === 'number' ? flags : undefined)}`
     let name = base
     for (let n = 2; taken.has(name); n++) {
       name = `${base}_${n}`

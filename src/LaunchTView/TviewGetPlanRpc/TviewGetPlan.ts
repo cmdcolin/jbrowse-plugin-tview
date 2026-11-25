@@ -4,20 +4,22 @@ import { getFeatureAdapterOrThrow } from '@jbrowse/core/data_adapters/getFeature
 import { RpcMethodType } from '@jbrowse/core/pluggableElementTypes'
 import { assembleLocString } from '@jbrowse/core/util'
 
+import { planModifications } from '../modifications'
 import {
   planHighlights,
   planRowData,
   planTviewMsa,
-  renderTviewMsa,
+  renderRows,
+  toFasta,
 } from '../tview'
 
-import type { AlignmentFeature } from '../readLayout'
+import type { TviewModifications } from '../modifications'
 import type PluginManager from '@jbrowse/core/PluginManager'
 import type {
   RpcCallContext,
   RpcExecuteArgs,
 } from '@jbrowse/core/rpc/RpcRegistry'
-import type { Region } from '@jbrowse/core/util'
+import type { Feature, Region } from '@jbrowse/core/util'
 import type { Highlight, RowDataInput } from 'react-msaview'
 
 /** one BAM/CRAM to draw rows from, and the name its rows are grouped under */
@@ -71,6 +73,8 @@ export interface TviewPlanResult {
   samples: string[]
   /** set when the alignment was over maxCells and `msa` is empty */
   tooLarge?: boolean
+  /** set when some read in the window has an MM tag */
+  modifications?: TviewModifications
 }
 
 declare module '@jbrowse/core/rpc/RpcRegistry' {
@@ -94,8 +98,8 @@ async function fetchAll(
   region: Region,
 ) {
   const dataAdapter = await getFeatureAdapterOrThrow(args)
-  return new Promise<AlignmentFeature[]>((resolve, reject) => {
-    const ret: AlignmentFeature[] = []
+  return new Promise<Feature[]>((resolve, reject) => {
+    const ret: Feature[] = []
     dataAdapter.getFeatures(region, { signal: args.signal }).subscribe({
       next: feature => ret.push(feature),
       error: reject,
@@ -189,7 +193,7 @@ export default class TviewGetPlan extends RpcMethodType<'TviewGetPlan'> {
       ),
       fetchReference(pluginManager, args),
     ])
-    const features: AlignmentFeature[] = []
+    const features: Feature[] = []
     const sampleByIndex: string[] = []
     for (const [i, feats] of perSource.entries()) {
       for (const feature of feats) {
@@ -234,8 +238,16 @@ export default class TviewGetPlan extends RpcMethodType<'TviewGetPlan'> {
 
     // the render is the expensive half and the only part bounded by rows x
     // columns, so the size check happens before it rather than after
-    return plan.cellCount > maxCells
-      ? { ...shared, msa: '', tooLarge: true }
-      : { ...shared, msa: renderTviewMsa(plan) }
+    const rows = plan.cellCount > maxCells ? undefined : renderRows(plan)
+    const modifications = rows
+      ? planModifications({ features, plan, rows })
+      : undefined
+    return rows
+      ? {
+          ...shared,
+          msa: toFasta(plan, rows),
+          ...(modifications ? { modifications } : {}),
+        }
+      : { ...shared, msa: '', tooLarge: true }
   }
 }

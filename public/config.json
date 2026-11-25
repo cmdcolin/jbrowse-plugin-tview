@@ -35,6 +35,22 @@
           ]
         }
       }
+    },
+    {
+      "name": "hg38_clip",
+      "sequence": {
+        "type": "ReferenceSequenceTrack",
+        "trackId": "hg38_clip_refseq",
+        "adapter": {
+          "type": "IndexedFastaAdapter",
+          "fastaLocation": {
+            "uri": "hg38_clip.fa"
+          },
+          "faiLocation": {
+            "uri": "hg38_clip.fa.fai"
+          }
+        }
+      }
     }
   ],
   "tracks": [
@@ -70,6 +86,24 @@
         "index": {
           "location": {
             "uri": "volvox-sorted-altname.bam.bai"
+          }
+        }
+      }
+    },
+    {
+      "type": "AlignmentsTrack",
+      "trackId": "methylation_clip",
+      "name": "methylation_clip.bam",
+      "category": ["Integration test"],
+      "assemblyNames": ["hg38_clip"],
+      "adapter": {
+        "type": "BamAdapter",
+        "bamLocation": {
+          "uri": "methylation_clip.bam"
+        },
+        "index": {
+          "location": {
+            "uri": "methylation_clip.bam.bai"
           }
         }
       }

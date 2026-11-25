@@ -173,6 +173,26 @@ function arrayContaining(arrays: ArrayBlock[], pos: number) {
 }
 
 /**
+ * The reference positions a row is walked over, from inclusive to exclusive. A
+ * trailing insertion is keyed one past the last position the read spans, so
+ * that slot is in it.
+ */
+export function rowSpan(read: ReadLayout, layout: ColumnLayout) {
+  const { start, end, arrays } = layout
+  const lastPos = read.start + read.refChars.length
+  const from = Math.max(start, read.start)
+  const to = Math.min(end, lastPos + 1)
+  // a row that begins or ends inside an array does not span it, so it gets no
+  // block; snapping past the block keeps the walk from emitting part of one
+  const startsInside = arrayContaining(arrays, from)
+  const endsInside = arrayContaining(arrays, to)
+  return {
+    from: startsInside ? Math.min(end, startsInside.end) : from,
+    to: endsInside ? endsInside.start : to,
+  }
+}
+
+/**
  * Lays a single row out across the whole region. Rows are typically a tiny
  * fraction of the region, so the columns on either side are filled in one shot
  * from the offsets rather than walked position by position — which works over
@@ -181,22 +201,10 @@ function arrayContaining(arrays: ArrayBlock[], pos: number) {
  * `refChars` between them.
  */
 export function renderRow(read: ReadLayout, layout: ColumnLayout) {
-  const { start, end, insWidths, arrays, offsets, totalColumns } = layout
+  const { start, insWidths, offsets, totalColumns } = layout
   const { arrayByStart, breaks } = layout
-  // a trailing insertion is keyed one past the last position the read spans
   const lastPos = read.start + read.refChars.length
-  let from = Math.max(start, read.start)
-  let to = Math.min(end, lastPos + 1)
-  // a row that begins or ends inside an array does not span it, so it gets no
-  // block; snapping past the block keeps the walk from emitting part of one
-  const startsInside = arrayContaining(arrays, from)
-  if (startsInside) {
-    from = Math.min(end, startsInside.end)
-  }
-  const endsInside = arrayContaining(arrays, to)
-  if (endsInside) {
-    to = endsInside.start
-  }
+  const { from, to } = rowSpan(read, layout)
   if (to <= from) {
     return ABSENT.repeat(totalColumns)
   }
@@ -253,6 +261,8 @@ export const REFERENCE = 'reference'
 
 export interface TviewPlan {
   reads: ReadLayout[]
+  /** the row each feature became, parallel to the features planned */
+  featureNames: string[]
   layout: ColumnLayout
   region: { refName: string; start: number; end: number }
   /** rows x columns, i.e. how big the alignment renderTviewMsa builds will be */
@@ -358,6 +368,7 @@ export function planTviewMsa({
 
   return {
     reads: aligned,
+    featureNames: names,
     layout,
     region: { refName, start, end },
     cellCount: aligned.length * layout.totalColumns,
@@ -370,8 +381,16 @@ export function planTviewMsa({
   }
 }
 
-export function renderTviewMsa({ reads, layout }: TviewPlan) {
-  return reads.map(r => `>${r.name}\n${renderRow(r, layout)}\n`).join('')
+export function renderRows({ reads, layout }: TviewPlan) {
+  return reads.map(r => renderRow(r, layout))
+}
+
+export function toFasta({ reads }: TviewPlan, rows: string[]) {
+  return reads.map((r, i) => `>${r.name}\n${rows[i]}\n`).join('')
+}
+
+export function renderTviewMsa(plan: TviewPlan) {
+  return toFasta(plan, renderRows(plan))
 }
 
 /**
