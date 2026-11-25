@@ -25,9 +25,9 @@ const REPO = 'https://github.com/cmdcolin/jbrowse-plugin-tview'
 /**
  * A JBrowse that can run this plugin.
  *
- * The nightly rather than a release: the bundle needs `@jbrowse/core` >=4.3
- * with MUI 9, and 4.3.0 itself does not ship it — the same requirement the
- * README states, pointed at something clickable.
+ * The nightly rather than a release: the plugin needs a JBrowse v5 host, and
+ * no v5 has been released yet — the same requirement the README states,
+ * pointed at something clickable.
  */
 const JBROWSE = 'https://jbrowse.org/code/jb2/main/index.html'
 

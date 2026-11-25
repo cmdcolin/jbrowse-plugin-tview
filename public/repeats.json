@@ -86,10 +86,7 @@
         "connectedViewId": "repeats_lgv",
         "colWidth": 6,
         "rowHeight": 8,
-        "labelsAlignRight": true,
-        "colorSchemeName": "jbrowse_dna",
-        "drawTree": true,
-        "treeAreaWidth": 330,
+        "treeAreaWidth": 220,
         "init": {
           "assembly": "hg19",
           "loc": "chrX:146,993,530..146,993,670",

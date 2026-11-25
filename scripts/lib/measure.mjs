@@ -101,8 +101,8 @@ export async function fetchReads({ uri, refName, start, end }) {
  * One locus measured across every source: the plan the view would build, and
  * the numbers that fall out of it.
  *
- * `sources` are `{ id, uri }`; the id becomes the row prefix and the clade
- * label, which is what makes the per-sample numbers below separable at all.
+ * `sources` are `{ id, uri }`; the id becomes each row's sample, which is what
+ * makes the per-sample numbers below separable at all.
  */
 export async function measureLocus({ locus, sources, sequenceOf }) {
   const sequence = await sequenceOf(locus)

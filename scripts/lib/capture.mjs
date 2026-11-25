@@ -17,7 +17,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import puppeteer from 'puppeteer'
 
-// How many rows have to carry a base before a column is worth a column.
+// How many rows have to carry a base before a column is worth a column, unless
+// a figure says otherwise.
 //
 // PacBio HiFi still miscalls the odd indel, and one read's extra base costs
 // every row a column of gaps — at FMR1 that was 40-odd columns, a fifth of the
@@ -33,17 +34,16 @@ import puppeteer from 'puppeteer'
 const MIN_ROWS_PER_COLUMN = 2
 
 /**
- * Shortest row that still carries its label.
- *
- * react-msaview draws neither tree labels nor residue letters below
- * `minLetterRowHeight`, which is 8 — a performance floor 6.0 introduced and
- * 5.x had no equivalent of. The README's figures were authored at 6, and the
- * bump took the copy counts off three of them without failing anything: the
- * rows, the columns and the alignment were all still right, and only the
- * labels — which are the measurement — were gone. Hence the warning below,
- * which asks the view what it drew rather than trusting this number.
+ * The port the dev server is started on, `FIGURE_PORT` or 9000, so a second
+ * checkout can take figures while another holds 9000. esbuild.mjs also takes
+ * the port 400 above it.
  */
-export const LABELLED_ROW_HEIGHT = 8
+export const FIGURE_PORT = process.env.FIGURE_PORT
+  ? Number(process.env.FIGURE_PORT)
+  : 9000
+
+/** the port the configs in `public/` name the plugin bundle at */
+const CONFIG_PORT = 9000
 
 const VIEWPORT = { width: 1400, height: 1100, deviceScaleFactor: 2 }
 
@@ -65,7 +65,7 @@ const DEFAULT_CONFIG = '../public/repeats.json'
 export function sessionSpec(figure) {
   const { loc, tracks, samples } = figure
   return {
-    name: figure.name,
+    sessionName: figure.name,
     views: [
       {
         id: 'lgv',
@@ -76,7 +76,7 @@ export function sessionSpec(figure) {
         assembly: figure.assembly,
         tracks: tracks.map(trackId => ({
           trackId,
-          displaySnapshot: { height: 55 },
+          displaySnapshot: { height: figure.genomeTrackHeight ?? 55 },
         })),
       },
       {
@@ -85,18 +85,14 @@ export function sessionSpec(figure) {
         displayName: figure.name,
         assembly: figure.assembly,
         loc,
-        tracks: tracks.map(t => ({
-          trackId: t,
-          sample: samples?.[t] ?? t,
-        })),
+        tracks: tracks.map(trackId =>
+          samples?.[trackId] ? { trackId, sample: samples[trackId] } : trackId,
+        ),
         connectedViewId: 'lgv',
         height: figure.height ?? 900,
         colWidth: figure.colWidth,
         rowHeight: figure.rowHeight,
-        treeAreaWidth: figure.treeAreaWidth,
-        labelsAlignRight: true,
-        colorSchemeName: 'jbrowse_dna',
-        drawTree: tracks.length > 1,
+        ...figure.view,
       },
     ],
   }
@@ -141,7 +137,7 @@ export function writeAdhocConfig({
   genome,
   sources,
   fasta,
-  port = 9000,
+  port = FIGURE_PORT,
   file = '.figure.json',
 }) {
   const ucsc = {
@@ -205,13 +201,34 @@ export function writeAdhocConfig({
   return `../${file}`
 }
 
-async function capture(page, figure, { port }) {
+/**
+ * The config a page on `port` can load, relative to `.test-jbrowse/`: the one
+ * named, or on another port than the configs name, a copy of it beside it that
+ * names the bundle on that port.
+ */
+function configOnPort(config, port) {
+  const file = path.join('.test-jbrowse', config)
+  const copy = file.replace(/\.json$/, `.port-${port}.json`)
+  if (port !== CONFIG_PORT) {
+    fs.writeFileSync(
+      copy,
+      fs
+        .readFileSync(file, 'utf8')
+        .replaceAll(`localhost:${CONFIG_PORT}`, `localhost:${port}`),
+    )
+  }
+  return port === CONFIG_PORT
+    ? { config }
+    : { config: path.relative('.test-jbrowse', copy), copy }
+}
+
+async function capture(page, figure, { port, config }) {
   console.log(`\n[${figure.name}] ${figure.loc}`)
   // each figure sizes the window to itself below, so start from the same one
   await page.setViewport(VIEWPORT)
   const session = encodeURIComponent(JSON.stringify(sessionSpec(figure)))
   await page.goto(
-    `http://localhost:${port}/.test-jbrowse/index.html?config=${figure.config ?? DEFAULT_CONFIG}&session=spec-${session}`,
+    `http://localhost:${port}/.test-jbrowse/index.html?config=${config}&session=spec-${session}`,
     { waitUntil: 'networkidle2' },
   )
 
@@ -225,6 +242,7 @@ async function capture(page, figure, { port }) {
     { timeout: 600_000, polling: 1000 },
   )
 
+  const minRows = figure.minRowsPerColumn ?? MIN_ROWS_PER_COLUMN
   const report = await page.evaluate(minRows => {
     const view = window.JBrowseSession.views.find(v => v.type === 'TView')
     const rows = view.rows.length
@@ -236,32 +254,34 @@ async function capture(page, figure, { port }) {
     // 100/rows percent and the rounding gives up 0.1, so the two land on top
     // of each other past a thousand rows — a figure that big wants the
     // threshold set exactly, not a tenth.
-    view.setAllowedGappyness(
-      Math.floor((1000 * (rows - minRows + 1)) / rows) / 10,
-    )
+    if (minRows > 1) {
+      view.setAllowedGappyness(
+        Math.floor((1000 * (rows - minRows + 1)) / rows) / 10,
+      )
+    }
     return {
       rows,
       columns: view.rows[0]?.[1].length,
       hidden: view.blanks.length,
-      labels: view.rows.slice(0, 4).map(r => r[0]),
-      // what the view is actually drawing, which is not what the settings
-      // asked for: react-msaview stops drawing residue letters and tree labels
-      // below a cell size and does it silently. Asked of the view rather than
-      // recomputed here, so the next time those floors move this reports it
-      // instead of quietly producing a figure with no copy counts in it
+      brackets: view.highlights.filter(h => h.mark === 'bracket').length,
+      copyPanels: view.rowPanels.length,
+      // react-msaview stops drawing residue letters below a cell size, and
+      // does it silently, so ask the view what it is drawing
       showsLetters: view.showMsaLetters,
-      showsLabels: view.showTreeText,
     }
-  }, MIN_ROWS_PER_COLUMN)
+  }, minRows)
   console.log(
-    `  ${report.rows} rows x ${report.columns} columns (${report.hidden} hidden as under ${MIN_ROWS_PER_COLUMN} rows)` +
-      `; letters ${report.showsLetters ? 'on' : 'off'}; top labels: ${report.labels.join(', ')}`,
+    `  ${report.rows} rows x ${report.columns} columns` +
+      (minRows > 1
+        ? ` (${report.hidden} hidden as under ${minRows} rows)`
+        : '') +
+      `; ${report.brackets} brackets; letters ${report.showsLetters ? 'on' : 'off'}`,
   )
-  // Every figure here is of its copy counts, and the copy counts are in the row
-  // labels. A figure without them looks finished and says nothing.
-  if (!report.showsLabels) {
+  // a repeat figure is of its copy counts, which the row panels draw only when
+  // the window holds a tandem array
+  if (figure.showsCopies && !report.copyPanels) {
     console.log(
-      `  WARNING: no row labels at rowHeight ${figure.rowHeight}, so no copy counts are on this figure`,
+      '  WARNING: no tandem array was found, so no copy counts are on this figure',
     )
   }
 
@@ -290,21 +310,14 @@ async function capture(page, figure, { port }) {
   // can least afford: rows are ordered longest allele first, so what falls off
   // the bottom is a whole sample.
   //
-  // `msaAreaHeight` is not the height the rows get: react-msaview subtracts the
-  // header and the minimap from the view's height, but the track area — the
-  // conservation plot, ~40px — is laid out above the rows inside what is left.
-  // So the space for rows is msaAreaHeight minus totalTrackAreaHeight, and a
-  // figure sized by msaAreaHeight alone loses a track's worth of rows off the
-  // bottom: at FMR1's 6px rows that was seven of them, and silently, because
-  // the model's own numbers say everything fits.
+  // `msaAreaHeight` is what is left for rows once the header, the brackets'
+  // strip and the tracks above the rows (the pinned reference among them) are
+  // taken out of the view's height, so the view grows by the difference.
   await new Promise(r => setTimeout(r, 1000))
   await page.evaluate(() => {
     const view = window.JBrowseSession.views.find(v => v.type === 'TView')
     view.setHeight(
-      view.height -
-        view.msaAreaHeight +
-        view.totalTrackAreaHeight +
-        (view.rows.length + 1) * view.rowHeight,
+      view.height - view.msaAreaHeight + (view.numRows + 1) * view.rowHeight,
     )
   })
 
@@ -345,11 +358,7 @@ async function capture(page, figure, { port }) {
       '[data-testid="view-container-tview"]',
     )
     return {
-      rows: Math.ceil(
-        view.rows.length * view.rowHeight +
-          view.totalTrackAreaHeight -
-          view.msaAreaHeight,
-      ),
+      rows: Math.ceil(view.numRows * view.rowHeight - view.msaAreaHeight),
       columns: Math.ceil(
         (view.rows[0][1].length - view.blanks.length) * view.colWidth -
           view.msaAreaWidth,
@@ -394,10 +403,16 @@ async function serve(port) {
  * README table that no longer describes any of them, so a failure is reported
  * and the rest are still taken.
  */
-export async function captureFigures(figures, { port = 9000 } = {}) {
+export async function captureFigures(figures, { port = FIGURE_PORT } = {}) {
   if (!fs.existsSync('.test-jbrowse')) {
     throw new Error('missing .test-jbrowse — run: pnpm pretest:e2e')
   }
+  const configs = new Map(
+    [...new Set(figures.map(f => f.config ?? DEFAULT_CONFIG))].map(config => [
+      config,
+      configOnPort(config, port),
+    ]),
+  )
   const server = await serve(port)
   const browser = await puppeteer.launch({
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
@@ -413,7 +428,10 @@ export async function captureFigures(figures, { port = 9000 } = {}) {
     })
     for (const figure of figures) {
       try {
-        await capture(page, figure, { port })
+        await capture(page, figure, {
+          port,
+          config: configs.get(figure.config ?? DEFAULT_CONFIG).config,
+        })
       } catch (e) {
         failed.push(figure.name)
         console.error(`  [${figure.name}] FAILED: ${e.message}`)
@@ -422,6 +440,11 @@ export async function captureFigures(figures, { port = 9000 } = {}) {
   } finally {
     await browser.close()
     server.kill()
+    for (const { copy } of configs.values()) {
+      if (copy) {
+        fs.rmSync(copy, { force: true })
+      }
+    }
   }
   return { failed }
 }

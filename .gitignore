@@ -16,5 +16,7 @@ test-screenshots/
 .test-jbrowse*/
 # the throwaway config `report:repeats --figure` writes for the browser
 .figure.json
+# the copies of a config the figure scripts write for a port other than 9000
+*.port-*.json
 public/config.e2e-*.json
 .vscode
