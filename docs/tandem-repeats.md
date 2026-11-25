@@ -158,11 +158,12 @@ the genotype table above. [Open this one live][tview-demo-fmr1].
 
 The repeat figures use these settings:
 
-- **Columns with a base in only one row are hidden.** react-msaview's gap
-  threshold is set to the percentage that means one row for the number of rows,
-  because a column takes the same width whether 124 rows use it or one does.
-  Those columns are read error, and the rows with such a base keep an insertion
-  marker in its place. The columns in each figure:
+- **Columns with a base in only one row are hidden**, which the view also does
+  for inserted columns once there are 20 rows. react-msaview's gap threshold is
+  set to the percentage that means one row for the number of rows, because a
+  column takes the same width whether 124 rows use it or one does. Those columns
+  are read error, and the rows with such a base keep an insertion marker in its
+  place. The columns in each figure:
 
 <!-- repeat-figures -->
 

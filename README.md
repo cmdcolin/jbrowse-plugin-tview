@@ -81,6 +81,8 @@ The 5mC calls without base colours, one of them in an inserted column.
   matches it draws as a dot, so the colours in a row are where its read differs
 - Inserted sequences at a site are aligned to each other, left-normalized, and
   merged with near-duplicate sites, under a bracket labelled with their size
+- Where the copies of an insertion agree they draw as one purple band, so only
+  the bases where a read differs keep a colour
 - Tandem repeats are laid out a copy per block, each row's copy count drawn
   beside it, with rows sorted into a ladder of alleles
 - Several BAM/CRAM files read into one alignment, in a band per sample

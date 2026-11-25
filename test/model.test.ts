@@ -129,6 +129,28 @@ describe('a view from a bare init', () => {
     expect(model.labelsAlignRight).toBe(true)
   })
 
+  it('reads inserted bases against their column and keeps the reference columns', async () => {
+    const model = await loaded()
+    expect(model.consensusInGaps).toBe(true)
+    expect(model.keepReferenceColumns).toBe(true)
+    const snapshot = getSnapshot(model)
+    expect(snapshot).not.toHaveProperty('consensusInGaps')
+    expect(snapshot).not.toHaveProperty('keepReferenceColumns')
+  })
+
+  it('hides an inserted column only one of 20 rows has, unless the reader set a threshold', async () => {
+    const rows = Array.from({ length: 19 }, (_, i) => `r${i}`)
+    const msa = [REFERENCE, ...rows]
+      .map(name => `>${name}\n${REFERENCE_ROW}\n`)
+      .join('')
+    const rowData = Object.fromEntries(
+      [REFERENCE, ...rows].map(name => [name, { sample: 'HG002' }]),
+    )
+    fetchPlan.mockResolvedValue(handBuilt({ msa, rowData }))
+    expect((await loaded()).allowedGappyness).toBe(95)
+    expect((await loaded({ allowedGappyness: 50 })).allowedGappyness).toBe(50)
+  })
+
   it('writes none of its defaults into the snapshot, and keeps a value the reader set', async () => {
     const snapshot = getSnapshot(await loaded())
     expect(snapshot).not.toHaveProperty('rowHeight')

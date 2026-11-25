@@ -67,6 +67,26 @@ const LOAD_BRACKETS = 'tview-load'
 
 const ROW_HEIGHT = 12
 
+const MSA_DEFAULT_GAPPYNESS = 100
+
+/**
+ * Below this many rows an inserted column only one read has stays on screen,
+ * since one read there is what a reader is looking at, a modification call on
+ * an inserted base included
+ */
+const MIN_ROWS_TO_HIDE = 20
+
+/**
+ * The gap threshold, in percent, that hides an inserted column only one row
+ * has a base in: read error, which otherwise costs every other row a column of
+ * gaps. The reference's own columns are kept by `keepReferenceColumns`.
+ */
+function oneRowGappyness(rows: number) {
+  return rows >= MIN_ROWS_TO_HIDE
+    ? Math.floor((1000 * (rows - 1)) / rows) / 10
+    : MSA_DEFAULT_GAPPYNESS
+}
+
 const DNA_COLORS: ResidueColorDefault = {
   field: 'residue',
   scale: { scheme: 'jbrowse_dna' },
@@ -143,6 +163,8 @@ export default function stateModelFactory() {
           labelsAlignRight: true,
           residueColor: DNA_COLORS,
           turnedOffTracks: { 'position-ruler': false, conservation: true },
+          consensusInGaps: true,
+          keepReferenceColumns: true,
         },
       }),
       types.model({
@@ -176,6 +198,12 @@ export default function stateModelFactory() {
        * the base modification calls the last load placed, when its reads had any
        */
       loadedModifications: undefined as ModificationSummary | undefined,
+      /**
+       * #volatile
+       * the gap threshold the last load chose, which the next load replaces
+       * unless the reader has changed it since
+       */
+      autoGappyness: undefined as number | undefined,
     }))
     .views(self => ({
       /**
@@ -406,6 +434,15 @@ export default function stateModelFactory() {
         }
         if (self.colWidth === MAX_COL_WIDTH) {
           self.setColWidth(fittedColWidth(result.columnCount))
+        }
+        if (
+          self.allowedGappyness === MSA_DEFAULT_GAPPYNESS ||
+          self.allowedGappyness === self.autoGappyness
+        ) {
+          self.autoGappyness = oneRowGappyness(
+            Object.keys(result.rowData).length,
+          )
+          self.setAllowedGappyness(self.autoGappyness)
         }
       },
       /**

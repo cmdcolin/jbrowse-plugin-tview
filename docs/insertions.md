@@ -5,9 +5,10 @@
 An Alu in an intron of NPHP4, in HG002's PacBio HiFi reads. JBrowse's pileup
 above draws each read's copy as a purple box labelled with its length, 282 to
 285bp in the reads on screen. The tview below aligns the copies to each other in
-294 columns, with the poly-A tail in green at the right-hand end, and the rows
-without the insertion are blank across them. [Open this one
-live][tview-demo-alu].
+294 columns, where a base matching the other copies is a dot on purple, so the
+copies read as one band and only the bases where a read differs keep their
+colour. The rows without the insertion are blank across those columns. [Open
+this one live][tview-demo-alu].
 
 The GIAB HG002 structural-variant benchmark (v0.6, GRCh37) calls this a
 heterozygous 283bp insertion after 1:5,934,288. We picked it from the
@@ -56,9 +57,25 @@ moves that copy to the site the other 21 reads use.
 ![The volvox test reads at ctgA:15,140..15,190 in a tview, where the inserted bases have a column of their own](../img/tview-insertion.png)
 
 The volvox test reads at `ctgA:15,140..15,190`. The 1bp insertion after 15,163
-has a column, bracketed as "+1bp after ctgA:15,163", where the reads with the
-insertion show their base, a C in all but one. Bases that match the reference
-are dots on grey, and a row is white where its read has no base.
+has a column, bracketed as "+1bp after ctgA:15,163". The reads with the
+insertion have a C there in all but one, drawn as dots on purple, and the one
+read with another base shows it. Bases that match the reference are dots on
+grey, and a row is white where its read has no base.
+
+## Colours inside an insertion
+
+Where the reference has no base, a base is read against the other reads in its
+column. A base matching the column's commonest base, held by at least two reads
+and by more than half of them, draws as a dot on purple, the colour JBrowse's
+pileup draws an insertion in. An insertion most reads share is one purple band,
+and the bases where a read differs keep their base colour. Copies of a tandem
+repeat past the reference's count are drawn the same way, so an expansion is the
+purple part of each row.
+
+In a window of 20 reads or more, an inserted column only one read has a base in
+is hidden, since it is read error and would cost every other row a column of
+gaps. The read keeps an insertion marker there, and the reference's own columns
+are always kept.
 
 ## Reads grouped by allele
 

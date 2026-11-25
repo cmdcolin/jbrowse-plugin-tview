@@ -44,6 +44,11 @@ the `@jbrowse/core` boundary (mst's types are nominal).
   `setAlignment` reads it as unset and fits the width. Every other default (12px
   rows, right-aligned labels, DNA colours, the ruler on, Conservation off) is
   set the same way and a session's own value is kept, 16px rows included.
+- `allowedGappyness` is chosen per load: at msaview's 100, or at the value the
+  previous load chose (`autoGappyness`), `setAlignment` sets it to hide an
+  inserted column only one row has, from 20 rows up. It lands in the snapshot,
+  since it depends on the row count. `keepReferenceColumns` keeps the reference
+  positions, so a stretch no read covers stays on screen.
 
 ## `typescript` is held at 6.x by eslint, not by this code
 
