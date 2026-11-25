@@ -23,10 +23,18 @@ the `@jbrowse/core` boundary (mst's types are nominal).
 
 ## Figures
 
-- `pnpm figure` (local fixtures) and `pnpm figures:repeats` (GIAB, over the
+- `pnpm figure` (local fixtures) and `pnpm figures:giab` (GIAB, over the
   network) start their own dev server on `FIGURE_PORT`, 9000 by default, and
   `E2E_PORT` does the same for `pnpm test:e2e`. Use another port when 9000 is
   taken.
+- `.test-jbrowse` has to be a v5 nightly, since react-msaview 11 imports
+  `@jbrowse/core/util/tss-react`, which 4.3.0 does not re-export: on 4.3.0 every
+  figure fails with "JBrowsePluginTView is undefined". `pretest:e2e` only
+  creates the directory when it is missing, so check `.test-jbrowse/version.txt`
+  and recreate it when it is older.
+- A figure's `from` (`lgv` or `tview`) crops it to start at that view, and
+  `hideGenomeHeader` hides the genome view's navigation bar for the screenshot
+  only, so the demo link keeps it.
 - A view asking for react-msaview's default `colWidth` (12) or `rowHeight` (16)
   does not get it: `setAlignment` treats a default as unset and fits the column
   width and sets 12px rows. Ask for 13 or 15.

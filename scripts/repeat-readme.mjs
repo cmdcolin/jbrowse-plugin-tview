@@ -10,7 +10,7 @@
 // again only if it passes.
 import fs from 'node:fs'
 
-import { FIGURES } from './lib/figures.mjs'
+import { REPEAT_FIGURES } from './lib/figures.mjs'
 import { GENOME, LOCI, TRIO, TRIO_REPORT_ORDER } from './lib/giabTrio.mjs'
 import { measureLoci } from './lib/measure.mjs'
 import { table, writeBlocks } from './lib/readme.mjs'
@@ -99,7 +99,7 @@ const measurements = await measureLoci({
 // the figures are their own windows, narrower than the QC loci, so their shape
 // is measured rather than read off the table above
 const figureStats = []
-for (const figure of FIGURES) {
+for (const figure of REPEAT_FIGURES) {
   const [measurement] = await measureLoci({
     loci: [figure.locus],
     sources: TRIO.filter(t => figure.tracks.includes(t.id)),

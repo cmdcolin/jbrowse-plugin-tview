@@ -6,7 +6,7 @@
  * same thing a user gets from a shared link, and adding one is adding a JSON
  * object rather than another wait-then-click.
  *
- * Separate from `figures.mjs` because the README's four figures are not the
+ * Separate from `figures.mjs` because the README's figures are not the
  * only thing worth photographing — `report:repeats --figure` points the same
  * harness at whatever BAMs it was asked to measure.
  *
@@ -222,6 +222,27 @@ function configOnPort(config, port) {
     : { config: path.relative('.test-jbrowse', copy), copy }
 }
 
+/**
+ * The part of the window from the top of the view `from` names, `lgv` or
+ * `tview`, to the bottom of the tview: a figure of the views without the app
+ * bar, or of the tview alone.
+ */
+function clipFrom(page, from) {
+  return page.evaluate(from => {
+    const rect = id =>
+      document
+        .querySelector(`[data-testid="view-container-${id}"]`)
+        .getBoundingClientRect()
+    const top = rect(from).top
+    return {
+      x: 0,
+      y: top,
+      width: innerWidth,
+      height: rect('tview').bottom - top,
+    }
+  }, from)
+}
+
 async function capture(page, figure, { port, config }) {
   console.log(`\n[${figure.name}] ${figure.loc}`)
   // each figure sizes the window to itself below, so start from the same one
@@ -241,6 +262,14 @@ async function capture(page, figure, { port, config }) {
     },
     { timeout: 600_000, polling: 1000 },
   )
+
+  // the genome view's navigation bar is for whoever opens the link, and a
+  // figure has no use for it
+  if (figure.hideGenomeHeader) {
+    await page.evaluate(() => {
+      window.JBrowseSession.views.find(v => v.id === 'lgv').setHideHeader(true)
+    })
+  }
 
   const minRows = figure.minRowsPerColumn ?? MIN_ROWS_PER_COLUMN
   const report = await page.evaluate(minRows => {
@@ -375,7 +404,13 @@ async function capture(page, figure, { port, config }) {
   // let react-msaview paint its canvases
   await new Promise(r => setTimeout(r, 6000))
   fs.mkdirSync(path.dirname(figure.out), { recursive: true })
-  await page.screenshot({ path: figure.out })
+  await page.screenshot({
+    path: figure.out,
+    clip: figure.from ? await clipFrom(page, figure.from) : undefined,
+    // the default for a clip resizes the page to take it, and the views redraw
+    // empty while they lay themselves out again
+    captureBeyondViewport: false,
+  })
   console.log(`  wrote ${figure.out}`)
 }
 

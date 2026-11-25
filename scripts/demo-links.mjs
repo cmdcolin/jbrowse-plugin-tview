@@ -50,14 +50,6 @@ const BUNDLE = 'https://jbrowse.org/demos/tview/plugin.js'
 /** root-relative, since it is served from the origin the page is on */
 const HOSTED_CONFIG_URL = '/demos/tview/config.json'
 
-/** what each figure's link is called, and what it is worth opening for */
-const BLURBS = {
-  fmr1: 'CGG on the X, so two of the three samples carry one allele',
-  htt: 'the CAG tract, with a shoulder either side of one allele',
-  atxn3: 'the locus that reports as four arrays when anchored on insertions',
-  abca7: 'a 25bp VNTR whose alleles run past 2kb',
-}
-
 function hostedConfig() {
   const config = JSON.parse(fs.readFileSync(DEV_CONFIG, 'utf8'))
   return `${JSON.stringify(
@@ -89,12 +81,7 @@ function demoBlock() {
   return [
     table([
       ['locus', 'window', 'what it shows', 'open'],
-      ...FIGURES.map(f => [
-        f.name.toUpperCase(),
-        f.loc,
-        BLURBS[f.name],
-        `[launch][${ref(f)}]`,
-      ]),
+      ...FIGURES.map(f => [f.label, f.loc, f.blurb, `[launch][${ref(f)}]`]),
     ]),
     '',
     // the url on its own indented line, which is where prettier puts a link
@@ -124,9 +111,8 @@ function indexPage() {
   </head>
   <body>
     <p>
-      Opening the <a href="${href}">${first.name.toUpperCase()} demo</a> — the
-      GIAB trio at a tandem repeat, in a tview. The others are listed in the
-      <a href="${REPO}#live-demos">README</a>.
+      Opening the <a href="${href}">${first.label} demo</a>, ${first.blurb}.
+      The others are listed in the <a href="${REPO}#live-demos">README</a>.
     </p>
   </body>
 </html>

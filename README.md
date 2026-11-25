@@ -12,26 +12,108 @@ colours in a row mark where that read differs. Rows are grouped in a band per
 sample, and labelled brackets above the alignment mark the insertion sites and
 tandem arrays.
 
+## Gallery
+
+Each picture opens full size, and the ones of the GIAB trio also open as a
+[live demo](#live-demos).
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+<a href="img/insertion-alu.png"><img src="img/insertion-alu.png" width="380" alt="An Alu insertion in HG002, as a JBrowse pileup above and a tview below"></a>
+
+An Alu insertion in HG002: a box per read in the pileup, 290 aligned columns in
+the tview. [Live demo][tview-demo-alu]
+
+</td>
+<td width="50%" valign="top">
+
+<a href="img/insertion-alu-trio.png"><img src="img/insertion-alu-trio.png" width="380" alt="The same Alu insertion in the GIAB trio, one band per sample"></a>
+
+The NPHP4 Alu in a band per sample: the son and the father have it, the mother
+does not. [Live demo][tview-demo-alu-trio]
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+<a href="img/tview-insertion.png"><img src="img/tview-insertion.png" width="380" alt="A 1bp insertion in the volvox test reads, with its bracket and residue letters"></a>
+
+A 1bp insertion up close: one bracketed column, and a dot for each base that
+matches the reference.
+
+</td>
+<td width="50%" valign="top">
+
+<a href="img/repeat-atxn3-hg004.png"><img src="img/repeat-atxn3-hg004.png" width="380" alt="The ATXN3 CTG repeat in HG004, a block per copy, rows sorted by copy count"></a>
+
+ATXN3 in HG004, a block per CTG copy, rows sorted from 21 copies down to the
+reference's 8. [Live demo][tview-demo-atxn3-hg004]
+
+</td>
+</tr>
+<tr>
+<td colspan="2" valign="top">
+
+<a href="img/repeat-abca7-vntr.png"><img src="img/repeat-abca7-vntr.png" width="780" alt="The ABCA7 VNTR in HG003, a block per 25bp copy, with each row's copy count as a bar and a number"></a>
+
+The ABCA7 VNTR in HG003, a block per 25bp copy, rows sorted from 134 copies
+down, each with its count as a bar and a number. [Live demo][tview-demo-abca7]
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+<a href="img/tview-modifications-bases.png"><img src="img/tview-modifications-bases.png" width="380" alt="Nanopore reads with 5mC calls, coloured by bases, with a bar under each called base"></a>
+
+**Color by bases**: base colours, and a bar under each base with a modification
+call.
+
+</td>
+<td width="50%" valign="top">
+
+<a href="img/tview-modifications.png"><img src="img/tview-modifications.png" width="380" alt="The same reads coloured by modification, from blue at 0% to red at 100%"></a>
+
+**Color by modification**: each called base filled from blue (0%) to red (100%),
+one of them in an inserted column.
+
+</td>
+</tr>
+</table>
+
 ## Live demos
 
-Real human data, nothing to install. Each link opens the GIAB Ashkenazi trio —
-PacBio HiFi, GRCh37, streamed from GIAB's FTP — at a tandem repeat locus.
+Real human data, nothing to install. Each link opens reads from the GIAB
+Ashkenazi trio (PacBio HiFi, GRCh37, streamed from GIAB's FTP) at an Alu
+insertion or a tandem repeat.
 
 <!-- demo-links -->
 
-| locus | window                        | what it shows                                                     | open                       |
-| ----- | ----------------------------- | ----------------------------------------------------------------- | -------------------------- |
-| FMR1  | chrX:146,993,530..146,993,670 | CGG on the X, so two of the three samples carry one allele        | [launch][tview-demo-fmr1]  |
-| HTT   | chr4:3,076,570..3,076,730     | the CAG tract, with a shoulder either side of one allele          | [launch][tview-demo-htt]   |
-| ATXN3 | chr14:92,537,320..92,537,420  | the locus that reports as four arrays when anchored on insertions | [launch][tview-demo-atxn3] |
-| ABCA7 | chr19:1,049,460..1,050,000    | a 25bp VNTR whose alleles run past 2kb                            | [launch][tview-demo-abca7] |
+| locus            | window                        | what it shows                                                     | open                             |
+| ---------------- | ----------------------------- | ----------------------------------------------------------------- | -------------------------------- |
+| NPHP4 Alu, HG002 | chr1:5,934,190..5,934,390     | an Alu insertion in about half the reads, aligned base by base    | [launch][tview-demo-alu]         |
+| NPHP4 Alu        | chr1:5,934,190..5,934,390     | a band per sample: the son and the father have it, the mother not | [launch][tview-demo-alu-trio]    |
+| FMR1             | chrX:146,993,530..146,993,670 | CGG on the X, so two of the three samples carry one allele        | [launch][tview-demo-fmr1]        |
+| HTT              | chr4:3,076,570..3,076,730     | the CAG tract, with a shoulder either side of one allele          | [launch][tview-demo-htt]         |
+| ATXN3            | chr14:92,537,320..92,537,420  | the locus that reports as four arrays when anchored on insertions | [launch][tview-demo-atxn3]       |
+| ATXN3, HG004     | chr14:92,537,320..92,537,420  | the mother alone, a CTG ladder of two steps                       | [launch][tview-demo-atxn3-hg004] |
+| ABCA7            | chr19:1,049,460..1,050,000    | a 25bp VNTR whose alleles run past 2kb                            | [launch][tview-demo-abca7]       |
 
+[tview-demo-alu]:
+  https://jbrowse.org/code/jb2/main/index.html?config=/demos/tview/config.json&session=spec-%7B%22sessionName%22%3A%22alu%22%2C%22views%22%3A%5B%7B%22id%22%3A%22lgv%22%2C%22type%22%3A%22LinearGenomeView%22%2C%22loc%22%3A%22chr1%3A5%2C934%2C190..5%2C934%2C390%22%2C%22assembly%22%3A%22hg19%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG002%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A160%7D%7D%5D%7D%2C%7B%22id%22%3A%22tview%22%2C%22type%22%3A%22TView%22%2C%22displayName%22%3A%22alu%22%2C%22assembly%22%3A%22hg19%22%2C%22loc%22%3A%22chr1%3A5%2C934%2C190..5%2C934%2C390%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG002%22%2C%22sample%22%3A%22HG002_son%22%7D%5D%2C%22connectedViewId%22%3A%22lgv%22%2C%22height%22%3A900%2C%22colWidth%22%3A3%2C%22rowHeight%22%3A8%2C%22treeAreaWidth%22%3A220%7D%5D%7D
+[tview-demo-alu-trio]:
+  https://jbrowse.org/code/jb2/main/index.html?config=/demos/tview/config.json&session=spec-%7B%22sessionName%22%3A%22alu-trio%22%2C%22views%22%3A%5B%7B%22id%22%3A%22lgv%22%2C%22type%22%3A%22LinearGenomeView%22%2C%22loc%22%3A%22chr1%3A5%2C934%2C190..5%2C934%2C390%22%2C%22assembly%22%3A%22hg19%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG002%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%2C%7B%22trackId%22%3A%22HG003%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%2C%7B%22trackId%22%3A%22HG004%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%5D%7D%2C%7B%22id%22%3A%22tview%22%2C%22type%22%3A%22TView%22%2C%22displayName%22%3A%22alu-trio%22%2C%22assembly%22%3A%22hg19%22%2C%22loc%22%3A%22chr1%3A5%2C934%2C190..5%2C934%2C390%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG002%22%2C%22sample%22%3A%22HG002_son%22%7D%2C%7B%22trackId%22%3A%22HG003%22%2C%22sample%22%3A%22HG003_father%22%7D%2C%7B%22trackId%22%3A%22HG004%22%2C%22sample%22%3A%22HG004_mother%22%7D%5D%2C%22connectedViewId%22%3A%22lgv%22%2C%22height%22%3A900%2C%22colWidth%22%3A3%2C%22rowHeight%22%3A5%2C%22treeAreaWidth%22%3A220%7D%5D%7D
 [tview-demo-fmr1]:
   https://jbrowse.org/code/jb2/main/index.html?config=/demos/tview/config.json&session=spec-%7B%22sessionName%22%3A%22fmr1%22%2C%22views%22%3A%5B%7B%22id%22%3A%22lgv%22%2C%22type%22%3A%22LinearGenomeView%22%2C%22loc%22%3A%22chrX%3A146%2C993%2C530..146%2C993%2C670%22%2C%22assembly%22%3A%22hg19%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG002%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%2C%7B%22trackId%22%3A%22HG003%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%2C%7B%22trackId%22%3A%22HG004%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%5D%7D%2C%7B%22id%22%3A%22tview%22%2C%22type%22%3A%22TView%22%2C%22displayName%22%3A%22fmr1%22%2C%22assembly%22%3A%22hg19%22%2C%22loc%22%3A%22chrX%3A146%2C993%2C530..146%2C993%2C670%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG002%22%2C%22sample%22%3A%22HG002_son%22%7D%2C%7B%22trackId%22%3A%22HG003%22%2C%22sample%22%3A%22HG003_father%22%7D%2C%7B%22trackId%22%3A%22HG004%22%2C%22sample%22%3A%22HG004_mother%22%7D%5D%2C%22connectedViewId%22%3A%22lgv%22%2C%22height%22%3A900%2C%22colWidth%22%3A6%2C%22rowHeight%22%3A8%2C%22treeAreaWidth%22%3A220%7D%5D%7D
 [tview-demo-htt]:
   https://jbrowse.org/code/jb2/main/index.html?config=/demos/tview/config.json&session=spec-%7B%22sessionName%22%3A%22htt%22%2C%22views%22%3A%5B%7B%22id%22%3A%22lgv%22%2C%22type%22%3A%22LinearGenomeView%22%2C%22loc%22%3A%22chr4%3A3%2C076%2C570..3%2C076%2C730%22%2C%22assembly%22%3A%22hg19%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG002%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%2C%7B%22trackId%22%3A%22HG003%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%2C%7B%22trackId%22%3A%22HG004%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%5D%7D%2C%7B%22id%22%3A%22tview%22%2C%22type%22%3A%22TView%22%2C%22displayName%22%3A%22htt%22%2C%22assembly%22%3A%22hg19%22%2C%22loc%22%3A%22chr4%3A3%2C076%2C570..3%2C076%2C730%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG002%22%2C%22sample%22%3A%22HG002_son%22%7D%2C%7B%22trackId%22%3A%22HG003%22%2C%22sample%22%3A%22HG003_father%22%7D%2C%7B%22trackId%22%3A%22HG004%22%2C%22sample%22%3A%22HG004_mother%22%7D%5D%2C%22connectedViewId%22%3A%22lgv%22%2C%22height%22%3A900%2C%22colWidth%22%3A6%2C%22rowHeight%22%3A8%2C%22treeAreaWidth%22%3A220%7D%5D%7D
 [tview-demo-atxn3]:
   https://jbrowse.org/code/jb2/main/index.html?config=/demos/tview/config.json&session=spec-%7B%22sessionName%22%3A%22atxn3%22%2C%22views%22%3A%5B%7B%22id%22%3A%22lgv%22%2C%22type%22%3A%22LinearGenomeView%22%2C%22loc%22%3A%22chr14%3A92%2C537%2C320..92%2C537%2C420%22%2C%22assembly%22%3A%22hg19%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG002%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%2C%7B%22trackId%22%3A%22HG003%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%2C%7B%22trackId%22%3A%22HG004%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%5D%7D%2C%7B%22id%22%3A%22tview%22%2C%22type%22%3A%22TView%22%2C%22displayName%22%3A%22atxn3%22%2C%22assembly%22%3A%22hg19%22%2C%22loc%22%3A%22chr14%3A92%2C537%2C320..92%2C537%2C420%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG002%22%2C%22sample%22%3A%22HG002_son%22%7D%2C%7B%22trackId%22%3A%22HG003%22%2C%22sample%22%3A%22HG003_father%22%7D%2C%7B%22trackId%22%3A%22HG004%22%2C%22sample%22%3A%22HG004_mother%22%7D%5D%2C%22connectedViewId%22%3A%22lgv%22%2C%22height%22%3A900%2C%22colWidth%22%3A7%2C%22rowHeight%22%3A8%2C%22treeAreaWidth%22%3A220%7D%5D%7D
+[tview-demo-atxn3-hg004]:
+  https://jbrowse.org/code/jb2/main/index.html?config=/demos/tview/config.json&session=spec-%7B%22sessionName%22%3A%22atxn3-hg004%22%2C%22views%22%3A%5B%7B%22id%22%3A%22lgv%22%2C%22type%22%3A%22LinearGenomeView%22%2C%22loc%22%3A%22chr14%3A92%2C537%2C320..92%2C537%2C420%22%2C%22assembly%22%3A%22hg19%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG004%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%5D%7D%2C%7B%22id%22%3A%22tview%22%2C%22type%22%3A%22TView%22%2C%22displayName%22%3A%22atxn3-hg004%22%2C%22assembly%22%3A%22hg19%22%2C%22loc%22%3A%22chr14%3A92%2C537%2C320..92%2C537%2C420%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG004%22%2C%22sample%22%3A%22HG004_mother%22%7D%5D%2C%22connectedViewId%22%3A%22lgv%22%2C%22height%22%3A900%2C%22colWidth%22%3A7%2C%22rowHeight%22%3A8%2C%22treeAreaWidth%22%3A220%7D%5D%7D
 [tview-demo-abca7]:
   https://jbrowse.org/code/jb2/main/index.html?config=/demos/tview/config.json&session=spec-%7B%22sessionName%22%3A%22abca7%22%2C%22views%22%3A%5B%7B%22id%22%3A%22lgv%22%2C%22type%22%3A%22LinearGenomeView%22%2C%22loc%22%3A%22chr19%3A1%2C049%2C460..1%2C050%2C000%22%2C%22assembly%22%3A%22hg19%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG003%22%2C%22displaySnapshot%22%3A%7B%22height%22%3A55%7D%7D%5D%7D%2C%7B%22id%22%3A%22tview%22%2C%22type%22%3A%22TView%22%2C%22displayName%22%3A%22abca7%22%2C%22assembly%22%3A%22hg19%22%2C%22loc%22%3A%22chr19%3A1%2C049%2C460..1%2C050%2C000%22%2C%22tracks%22%3A%5B%7B%22trackId%22%3A%22HG003%22%2C%22sample%22%3A%22HG003_father%22%7D%5D%2C%22connectedViewId%22%3A%22lgv%22%2C%22height%22%3A900%2C%22colWidth%22%3A1%2C%22rowHeight%22%3A16%7D%5D%7D
 
@@ -60,20 +142,25 @@ Hosting the bundle there also frees the demo from npm releases:
 spec its figure below was taken from, so after an upload the demo, the
 screenshot and the numbers are three renderings of one window.
 
-## Gallery
-
-![The volvox test reads at ctgA:15,140..15,190, as a JBrowse pileup above and as a tview below, where the inserted bases have a column of their own](img/tview-insertion.png)
-
-The same reads at `ctgA:15,140..15,190`, twice. In the pileup above, the 1bp
-insertion after 15,163 is a column of purple `I(1)` markers. In the tview below
-it is a column of its own, bracketed as "+1bp after ctgA:15,163": the reads with
-the insertion show their base there, a C in all but one. Bases that match the
-reference are dots on grey, and a row is white where its read has no base.
-
-`pnpm figure` regenerates this one and the base modification figure below; the
-tandem-repeat figures come from `pnpm figures:repeats`.
-
 ## Insertions
+
+![An Alu insertion in HG002 at chr1:5,934,288, as a JBrowse pileup above, where each read's copy is a purple box with its length, and as a tview below, where its bases have columns](img/insertion-alu.png)
+
+An Alu in an intron of NPHP4, in HG002's PacBio HiFi reads. JBrowse's pileup
+above draws each read's copy as a purple box labelled with its length, 282 to
+285bp in the reads on screen. The tview below aligns the copies to each other in
+290 columns, with the poly-A tail in green at the right-hand end, and the rows
+without the insertion are blank across them. [Open this one
+live][tview-demo-alu].
+
+The GIAB HG002 structural-variant benchmark (v0.6, GRCh37) calls this a
+heterozygous 283bp insertion after 1:5,934,288. It was found by taking that
+benchmark's heterozygous insertions of 280 to 330bp outside tandem repeats and
+segmental duplications, and counting, in each of the trio's BAMs, the reads that
+span each one and the reads with an insertion of 200bp or more within 100bp of
+it. Here 22 of HG002's 44 spanning reads have it, 24 of his father's 54 do, and
+none of his mother's 31 do, which is what [the same window in all
+three][tview-demo-alu-trio] shows.
 
 Each insertion site is as wide as the longest sequence inserted there, after the
 sequences are aligned to each other:
@@ -95,14 +182,24 @@ sequences are aligned to each other:
   a read that spans a site without inserting has `-` in its columns, and a read
   that does not span it has `.`.
 
+![The volvox test reads at ctgA:15,140..15,190 in a tview, where the inserted bases have a column of their own](img/tview-insertion.png)
+
+The volvox test reads at `ctgA:15,140..15,190`. The 1bp insertion after 15,163
+is a column of its own, bracketed as "+1bp after ctgA:15,163": the reads with
+the insertion show their base there, a C in all but one. Bases that match the
+reference are dots on grey, and a row is white where its read has no base.
+
 Each insertion site has a bracket in the Highlights strip above the alignment,
 labelled with the size and the reference base it follows, such as
-`+1bp after ctgA:15,163`. Each tandem array has one labelled with its unit and
-the reference's copy count, such as `(GCG)x21 in the reference`. In a noisy
-window only the 100 sites carrying the most inserted sequence get a bracket. A
-one-column bracket draws as a triangle, and where brackets crowd, some are drawn
-without their label. Hovering a bracket outlines its columns, a click selects
-them, and a double click zooms to them.
+`+1bp after ctgA:15,163`. The size is the site's width in columns, so where
+reads disagree it is more than any one read inserted: HG002's reads have 280 to
+287bp of the Alu above, and the bracket over it is labelled `+290bp`. Each
+tandem array has a bracket labelled with its unit and the reference's copy
+count, such as `(GCG)x21 in the reference`. In a noisy window only the 100 sites
+carrying the most inserted sequence get a bracket. A one-column bracket draws as
+a triangle, and where brackets crowd, some are drawn without their label.
+Hovering a bracket outlines its columns, a click selects them, and a double
+click zooms to them.
 
 ## How it is built
 
@@ -288,12 +385,13 @@ Three things about this figure are settings rather than data:
 
 <!-- repeat-figures -->
 
-| figure                             | rows | columns | columns one row has | hidden |
-| ---------------------------------- | ---- | ------- | ------------------- | ------ |
-| [fmr1](img/repeat-fmr1-trio.png)   | 124  | 218     | 24                  | 11%    |
-| [htt](img/repeat-htt-trio.png)     | 182  | 222     | 25                  | 11%    |
-| [atxn3](img/repeat-atxn3-trio.png) | 157  | 159     | 18                  | 11%    |
-| [abca7](img/repeat-abca7-vntr.png) | 16   | 3630    | 1253                | 35%    |
+| figure                                    | rows | columns | columns one row has | hidden |
+| ----------------------------------------- | ---- | ------- | ------------------- | ------ |
+| [fmr1](img/repeat-fmr1-trio.png)          | 124  | 218     | 24                  | 11%    |
+| [htt](img/repeat-htt-trio.png)            | 182  | 222     | 25                  | 11%    |
+| [atxn3](img/repeat-atxn3-trio.png)        | 157  | 159     | 18                  | 11%    |
+| [atxn3-hg004](img/repeat-atxn3-hg004.png) | 53   | 145     | 4                   | 3%     |
+| [abca7](img/repeat-abca7-vntr.png)        | 16   | 3630    | 1253                | 35%    |
 
 <!-- /repeat-figures -->
 
@@ -301,7 +399,7 @@ Three things about this figure are settings rather than data:
   view fits the column to the widest name unless told otherwise.
 - **The window is sized to the alignment**, because a JBrowse view taller than
   its window loses its last rows with nothing on screen to say so, and what
-  falls off the bottom is the last band, a whole sample. `pnpm figures:repeats`
+  falls off the bottom is the last band, a whole sample. `pnpm figures:giab`
   grows the window to the content and warns when it cannot.
 
 ## Base modifications
@@ -444,8 +542,8 @@ pnpm test:e2e         # puppeteer tests (creates .test-jbrowse on first run)
 pnpm lint
 pnpm build
 
-pnpm figure           # the insertion and base modification figures in img/
-pnpm figures:repeats  # the tandem-repeat figures in img/
+pnpm figure           # the figures in img/ from the fixtures in public/
+pnpm figures:giab     # the figures in img/ from the GIAB trio
 pnpm report:repeats   # copy numbers at known loci, from live GIAB data
 pnpm demos            # public/demo.json and the live-demo links above
 pnpm demos:upload     # ...and push both to jbrowse.org/demos/tview/

@@ -23,12 +23,29 @@ function locus(name, loc, refName) {
   return { name, chrom, refName, start: start - 1, end }
 }
 
+/** the settings every figure of the GIAB trio shares */
+function giab(figure) {
+  return {
+    // read names say nothing a figure of copy counts needs, and fitted to the
+    // widest of them the label column takes a third of the figure; at this
+    // width they are cut in the middle and the track names beside them still
+    // fit
+    view: { treeAreaWidth: 220 },
+    label: figure.name.toUpperCase(),
+    ...figure,
+    assembly: GENOME,
+    samples: SAMPLE_NAMES,
+    locus: locus(figure.name, figure.loc, figure.refName),
+  }
+}
+
 // Windows are the array plus a short flank: a row has to span the array end to
 // end to be counted, so the flank only has to show it sitting in ordinary
 // sequence.
-export const FIGURES = [
+export const REPEAT_FIGURES = [
   {
     name: 'fmr1',
+    blurb: 'CGG on the X, so two of the three samples carry one allele',
     out: 'img/repeat-fmr1-trio.png',
     // FMR1 sits on the X, so the two male samples carry one allele and the
     // mother two — a copy count that cannot come out right by accident
@@ -40,6 +57,7 @@ export const FIGURES = [
   },
   {
     name: 'htt',
+    blurb: 'the CAG tract, with a shoulder either side of one allele',
     out: 'img/repeat-htt-trio.png',
     loc: 'chr4:3,076,570..3,076,730',
     refName: '4',
@@ -49,6 +67,7 @@ export const FIGURES = [
   },
   {
     name: 'atxn3',
+    blurb: 'the locus that reports as four arrays when anchored on insertions',
     out: 'img/repeat-atxn3-trio.png',
     loc: 'chr14:92,537,320..92,537,420',
     refName: '14',
@@ -57,7 +76,22 @@ export const FIGURES = [
     rowHeight: 8,
   },
   {
+    // one sample of the trio above, whose two alleles are far enough apart to
+    // read as a ladder of two steps at any size
+    name: 'atxn3-hg004',
+    label: 'ATXN3, HG004',
+    blurb: 'the mother alone, a CTG ladder of two steps',
+    out: 'img/repeat-atxn3-hg004.png',
+    loc: 'chr14:92,537,320..92,537,420',
+    refName: '14',
+    tracks: ['HG004'],
+    colWidth: 7,
+    rowHeight: 8,
+    from: 'tview',
+  },
+  {
     name: 'abca7',
+    blurb: 'a 25bp VNTR whose alleles run past 2kb',
     out: 'img/repeat-abca7-vntr.png',
     // a 25bp VNTR whose alleles run past 2kb: the case base-to-base alignment
     // cannot afford and left-justification cannot read
@@ -70,17 +104,60 @@ export const FIGURES = [
     // sixteen rows leave room for the read names
     view: {},
   },
-].map(figure => ({
-  // read names say nothing a figure of copy counts needs, and fitted to the
-  // widest of them the label column takes a third of the figure; at this width
-  // they are cut in the middle and the track names beside them still fit
-  view: { treeAreaWidth: 220 },
-  ...figure,
-  assembly: GENOME,
-  samples: SAMPLE_NAMES,
-  showsCopies: true,
-  locus: locus(figure.name, figure.loc, figure.refName),
-}))
+].map(figure => giab({ ...figure, showsCopies: true }))
+
+// An Alu in an intron of NPHP4, 290bp in the reads, which the GIAB HG002 SV
+// benchmark (v0.6) calls heterozygous at 1:5,934,288. HG002 has it from his
+// father, and his mother has none of it.
+const ALU = {
+  label: 'NPHP4 Alu',
+  loc: 'chr1:5,934,190..5,934,390',
+  refName: '1',
+  colWidth: 3,
+}
+
+export const INSERTION_FIGURES = [
+  {
+    ...ALU,
+    name: 'alu',
+    label: 'NPHP4 Alu, HG002',
+    out: 'img/insertion-alu.png',
+    blurb: 'an Alu insertion in about half the reads, aligned base by base',
+    tracks: ['HG002'],
+    rowHeight: 8,
+    genomeTrackHeight: 160,
+    hideGenomeHeader: true,
+    from: 'lgv',
+  },
+  {
+    ...ALU,
+    name: 'alu-trio',
+    out: 'img/insertion-alu-trio.png',
+    blurb: 'a band per sample: the son and the father have it, the mother not',
+    tracks: ALL,
+    rowHeight: 5,
+    from: 'tview',
+  },
+].map(giab)
+
+/** every figure of the GIAB trio, each of which is also a live demo */
+export const FIGURES = [...INSERTION_FIGURES, ...REPEAT_FIGURES]
+
+// Nanopore reads with 5mC calls, one of them on a base a read inserted after
+// 20:13,243; the flank on the right is what the legend covers. The two figures
+// differ only in what the cells are coloured by.
+const MODIFICATIONS = {
+  config: '../public/config.json',
+  assembly: 'hg38_clip',
+  loc: '20:13,226..13,275',
+  tracks: ['methylation_clip'],
+  colWidth: 16,
+  // band labels are cut short above 16px rows, and 16 itself is taken as unset
+  // and replaced
+  rowHeight: 15,
+  minRowsPerColumn: 1,
+  from: 'tview',
+}
 
 /**
  * The figures `pnpm figure` takes from the fixtures in `public/`, which need no
@@ -97,26 +174,22 @@ export const LOCAL_FIGURES = [
     tracks: ['volvox_bam'],
     colWidth: 16,
     rowHeight: 15,
-    genomeTrackHeight: 220,
     minRowsPerColumn: 1,
+    from: 'tview',
   },
   {
+    ...MODIFICATIONS,
     name: 'modifications',
     out: 'img/tview-modifications.png',
-    config: '../public/config.json',
-    assembly: 'hg38_clip',
-    // nanopore reads with 5mC calls, one of them on a base a read inserted
-    // after 20:13,243; the flank on the right is what the legend covers
-    loc: '20:13,226..13,275',
-    tracks: ['methylation_clip'],
-    colWidth: 16,
-    // band labels are cut short above 16px rows, and 16 itself is taken as
-    // unset and replaced
-    rowHeight: 15,
-    genomeTrackHeight: 160,
-    minRowsPerColumn: 1,
     view: {
+      treeAreaWidth: 220,
       residueColor: { field: 'feature', scale: { scheme: 'jbrowse_dna' } },
     },
   },
-]
+  {
+    ...MODIFICATIONS,
+    name: 'modifications-bases',
+    out: 'img/tview-modifications-bases.png',
+    view: { treeAreaWidth: 220 },
+  },
+].map(figure => ({ hideGenomeHeader: true, from: 'lgv', ...figure }))

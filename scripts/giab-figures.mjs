@@ -1,6 +1,6 @@
-// Regenerates the tandem-repeat figures in img/.
-//   pnpm figures:repeats            all of them
-//   pnpm figures:repeats fmr1       just the named ones
+// Regenerates the figures in img/ that come from the GIAB trio.
+//   pnpm figures:giab            all of them
+//   pnpm figures:giab fmr1       just the named ones
 //
 // The figures are defined in lib/figures.mjs and taken by lib/capture.mjs;
 // this is only which of them were asked for.
