@@ -586,6 +586,35 @@ describe('the row table', () => {
 })
 
 describe('planHighlights', () => {
+  it('marks only the sites carrying the most inserted sequence', () => {
+    const reference = 'ACGT'.repeat(120)
+    const noise = Array.from({ length: 150 }, (_, i) =>
+      feature({
+        name: `noise${i}`,
+        start: 0,
+        CIGAR: `${2 * i + 10}M1I${reference.length - 2 * i - 10}M`,
+        seq: `${reference.slice(0, 2 * i + 10)}N${reference.slice(2 * i + 10)}`,
+      }),
+    )
+    const event = ['a', 'b'].map(name =>
+      feature({
+        name,
+        start: 0,
+        CIGAR: `400M9I${reference.length - 400}M`,
+        seq: `${reference.slice(0, 400)}GGGGGGGGG${reference.slice(400)}`,
+      }),
+    )
+    const highlights = planHighlights(
+      planTviewMsa({
+        features: [...noise, ...event],
+        refName: 'ctgA',
+        start: 0,
+        end: reference.length,
+      }),
+    )
+    expect(highlights).toHaveLength(100)
+    expect(highlights.some(h => h.label === '+9bp after ctgA:400')).toBe(true)
+  })
   it('brackets each insertion site in 1-based file columns', () => {
     const plan = planTviewMsa({
       features: [

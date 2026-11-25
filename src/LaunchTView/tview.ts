@@ -395,11 +395,17 @@ export function planRowData({ reads, subject }: TviewPlan): RowDataInput {
   )
 }
 
+// A bracket is kept in the session and drawn in one strip, and a noisy window
+// has an insertion site every few bases, so only the sites carrying the most
+// inserted sequence are marked.
+const MAX_INSERTION_BRACKETS = 100
+
 /**
- * A bracket over every run of columns that is not one reference base: each
- * insertion site, and each array block. Columns are the file's, 1-based.
+ * A bracket over the runs of columns that are not one reference base: the
+ * insertion sites, and each array block. Columns are the file's, 1-based.
  */
 export function planHighlights({
+  reads,
   layout,
   region,
   referenceName,
@@ -407,8 +413,23 @@ export function planHighlights({
   const { start, offsets, insWidths, arrays } = layout
   const n = (x: number) => x.toLocaleString('en-US')
   const column = (pos: number) => offsets[pos - start]! + 1
+  const insertedBases = new Map<number, number>()
+  for (const read of reads) {
+    for (const [pos, ins] of read.insertions) {
+      insertedBases.set(
+        pos,
+        (insertedBases.get(pos) ?? 0) + ins.replaceAll(SPANNED_GAP, '').length,
+      )
+    }
+  }
   const insertions = [...insWidths]
     .filter(([, width]) => width > 0)
+    .sort(
+      (a, b) =>
+        (insertedBases.get(b[0]) ?? 0) - (insertedBases.get(a[0]) ?? 0) ||
+        a[0] - b[0],
+    )
+    .slice(0, MAX_INSERTION_BRACKETS)
     .map(([pos, width]) => ({
       start: column(pos),
       end: column(pos) + width - 1,
