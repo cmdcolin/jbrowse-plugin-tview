@@ -11,8 +11,7 @@ import type { Browser, Page } from 'puppeteer'
 // config that names it there, so two checkouts can run this suite at once
 const DEFAULT_PORT = 9000
 const PORT = process.env.E2E_PORT ? +process.env.E2E_PORT : DEFAULT_PORT
-const CONFIG =
-  PORT === DEFAULT_PORT ? 'config.json' : `config.e2e-${PORT}.json`
+const CONFIG = PORT === DEFAULT_PORT ? 'config.json' : `config.e2e-${PORT}.json`
 const INSTANCE = process.env.TEST_JBROWSE_DIR ?? '.test-jbrowse'
 const URL = `http://localhost:${PORT}/${INSTANCE}/index.html?config=../public/${CONFIG}`
 const SHOTS = 'test-screenshots'
