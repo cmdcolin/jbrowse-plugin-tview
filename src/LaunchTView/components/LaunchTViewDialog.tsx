@@ -29,7 +29,7 @@ const FIT_WIDTH_PX = 3000
 
 function trackLabel(track: AbstractTrackModel) {
   return (
-    (getConf(track, 'name') as string) || (getConf(track, 'trackId') as string)
+    (getConf(track, 'name')) || (getConf(track, 'trackId'))
   )
 }
 
@@ -81,7 +81,7 @@ export default function LaunchTViewDialog({
         assembly: region.assemblyName,
         loc: assembleLocString(region),
         tracks: chosen.map(t => ({
-          trackId: getConf(t, 'trackId') as string,
+          trackId: getConf(t, 'trackId'),
           sample: trackLabel(t),
         })),
       }

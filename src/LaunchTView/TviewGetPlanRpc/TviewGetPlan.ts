@@ -1,12 +1,15 @@
 import { getAdapter } from '@jbrowse/core/data_adapters/dataAdapterCache'
 import { RpcMethodType } from '@jbrowse/core/pluggableElementTypes'
-import { renameRegionsIfNeeded } from '@jbrowse/core/util'
 
 import { buildSampleTree } from '../sampleTree'
 import { planTviewMsa, renderTviewMsa } from '../tview'
 
 import type { AlignmentFeature } from '../readLayout'
 import type PluginManager from '@jbrowse/core/PluginManager'
+import type {
+  RpcCallContext,
+  RpcExecuteArgs,
+} from '@jbrowse/core/rpc/RpcRegistry'
 import type { Region } from '@jbrowse/core/util'
 
 /** one BAM/CRAM to draw rows from, and the name its rows are grouped under */
@@ -22,7 +25,6 @@ export interface TviewSourceArgs {
 }
 
 export interface TviewGetPlanArgs {
-  sessionId: string
   sources: TviewSourceArgs[]
   /** the assembly's sequence adapter, when it has one */
   sequenceAdapterConfig?: Record<string, unknown>
@@ -61,6 +63,12 @@ export interface TviewPlanResult {
   samples: string[]
   /** set when the alignment was over maxCells and `msa` is empty */
   tooLarge?: boolean
+}
+
+declare module '@jbrowse/core/rpc/RpcRegistry' {
+  interface RpcRegistry {
+    TviewGetPlan: { args: TviewGetPlanArgs; return: TviewPlanResult }
+  }
 }
 
 /** the slice of a data adapter this reads, which is all of `getFeatures` */
@@ -126,50 +134,32 @@ async function fetchAll(
  * against the same reference interval, so an array's copies are counted once,
  * over rows from all of them.
  */
-export default class TviewGetPlan extends RpcMethodType {
-  name = 'TviewGetPlan'
+export default class TviewGetPlan extends RpcMethodType<'TviewGetPlan'> {
+  name = 'TviewGetPlan' as const
 
-  /**
-   * Written against the 4.3.0 base class, which takes a bare
-   * `Record<string, unknown>` and has no `renameRegions` helper — that is the
-   * oldest host this bundle boots on, and the newer base class accepts the same
-   * shape.
-   */
-  async serializeArguments(
-    args: Record<string, unknown>,
-    rpcDriverClassName: string,
-  ) {
-    const typed = args as unknown as TviewGetPlanArgs
-    const assemblyManager =
-      this.pluginManager.rootModel?.session?.assemblyManager
-    if (!assemblyManager) {
-      throw new Error('no assembly manager')
-    }
+  async serializeArguments(args: TviewGetPlanArgs & RpcCallContext) {
     const refNameFor = async (adapterConfig: Record<string, unknown>) => {
-      const { regions } = await renameRegionsIfNeeded(assemblyManager, {
-        sessionId: typed.sessionId,
+      const { regions } = await this.renameRegions({
+        sessionId: args.sessionId,
         adapterConfig,
-        regions: [typed.region],
+        regions: [args.region],
       })
       return regions[0]!.refName
     }
     const sources = await Promise.all(
-      typed.sources.map(async source => ({
+      args.sources.map(async source => ({
         ...source,
         refName: await refNameFor(source.adapterConfig),
       })),
     )
-    const sequenceRefName = typed.sequenceAdapterConfig
-      ? await refNameFor(typed.sequenceAdapterConfig)
+    const sequenceRefName = args.sequenceAdapterConfig
+      ? await refNameFor(args.sequenceAdapterConfig)
       : undefined
 
-    return super.serializeArguments(
-      { ...args, sources, sequenceRefName },
-      rpcDriverClassName,
-    )
+    return super.serializeArguments({ ...args, sources, sequenceRefName })
   }
 
-  async execute(args: TviewGetPlanArgs, rpcDriverClassName: string) {
+  async execute(args: RpcExecuteArgs<'TviewGetPlan'>) {
     const {
       sessionId,
       sources,
@@ -177,7 +167,7 @@ export default class TviewGetPlan extends RpcMethodType {
       sequenceRefName,
       region,
       maxCells,
-    } = await this.deserializeArguments(args, rpcDriverClassName)
+    } = await this.deserializeArguments(args)
 
     const perSource = await Promise.all(
       sources.map(source =>

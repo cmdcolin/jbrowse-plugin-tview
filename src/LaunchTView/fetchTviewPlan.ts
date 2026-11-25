@@ -2,8 +2,6 @@ import { readConfObject } from '@jbrowse/core/configuration'
 
 import { MAX_CELLS } from './limits'
 
-import type { TviewPlanResult } from './TviewGetPlanRpc'
-import type { AnyConfigurationModel } from '@jbrowse/core/configuration'
 import type { AbstractSessionModel } from '@jbrowse/core/util'
 
 /** the RPC needs assemblyName to resolve refNameAliases for the file */
@@ -16,35 +14,10 @@ export interface FetchRegion {
 
 /** one track's worth of rows, and the name they are grouped under */
 export interface TviewSource {
-  adapterConfig: unknown
+  adapterConfig: Record<string, unknown>
   /** the label rows from this file carry; omitted when there is only one */
   sample?: string
   trackId: string
-}
-
-/**
- * The trackId -> config index, whose shape has changed across hosts still in
- * the wild: v4.0.0 exposes a `tracksById` getter, v4.1-v4.3 a `getTracksById()`
- * method, and newer cores a per-id reactive `getTrackById(id)` (with
- * `getTracksById()` kept but deprecated). All three resolve connection and
- * assembly-sequence tracks; the `tracks` scan is a last resort because it does
- * not, and it subscribes the caller to every track.
- */
-export interface SessionTrackLookup {
-  tracks: AnyConfigurationModel[]
-  getTrackById?: (id: string) => AnyConfigurationModel | undefined
-  getTracksById?: () => Record<string, AnyConfigurationModel>
-  tracksById?: Record<string, AnyConfigurationModel>
-}
-
-export function findTrackConf(session: SessionTrackLookup, trackId: string) {
-  return session.getTrackById
-    ? session.getTrackById(trackId)
-    : session.getTracksById
-      ? session.getTracksById()[trackId]
-      : session.tracksById
-        ? session.tracksById[trackId]
-        : session.tracks.find(t => readConfObject(t, 'trackId') === trackId)
 }
 
 /**
@@ -82,8 +55,7 @@ export async function fetchTviewPlan({
   maxCells?: number
 }) {
   const rpcSessionId = `tview-${sources.map(s => s.trackId).join(',')}`
-  return (await session.rpcManager.call(rpcSessionId, 'TviewGetPlan', {
-    sessionId: rpcSessionId,
+  return session.rpcManager.call(rpcSessionId, 'TviewGetPlan', {
     sources: sources.map(s => ({
       adapterConfig: s.adapterConfig,
       sample: s.sample,
@@ -91,5 +63,5 @@ export async function fetchTviewPlan({
     sequenceAdapterConfig: sequenceAdapterConfig(session, region.assemblyName),
     region,
     maxCells,
-  })) as TviewPlanResult
+  })
 }

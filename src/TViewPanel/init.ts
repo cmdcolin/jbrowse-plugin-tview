@@ -1,7 +1,5 @@
-import { readConfObject } from '@jbrowse/core/configuration'
 import { parseLocString } from '@jbrowse/core/util'
-
-import { findTrackConf } from '../LaunchTView/fetchTviewPlan'
+import { getTrackName } from '@jbrowse/core/util/tracks'
 
 import type { TviewSource } from '../LaunchTView/fetchTviewPlan'
 import type { AbstractSessionModel } from '@jbrowse/core/util'
@@ -81,7 +79,7 @@ export function initRegion(session: AbstractSessionModel, init: TviewInit) {
  */
 interface ResolvedTrack {
   trackId: string
-  adapterConfig: unknown
+  adapterConfig: Record<string, unknown>
   sample: string
 }
 
@@ -91,12 +89,12 @@ function resolveTrack(
 ): ResolvedTrack | undefined {
   const { trackId, sample } =
     typeof entry === 'string' ? { trackId: entry, sample: undefined } : entry
-  const conf = findTrackConf(session, trackId)
+  const conf = session.getTrackById(trackId)
   return conf
     ? {
         trackId,
-        adapterConfig: readConfObject(conf, 'adapter'),
-        sample: sample || (readConfObject(conf, 'name') as string) || trackId,
+        adapterConfig: conf.adapter as Record<string, unknown>,
+        sample: sample || getTrackName(conf, session) || trackId,
       }
     : undefined
 }
