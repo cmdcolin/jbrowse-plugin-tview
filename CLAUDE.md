@@ -7,10 +7,10 @@ See `../CLAUDE.md` for the publishing rules that apply to every plugin here.
 `@jbrowse/core` and `@jbrowse/plugin-linear-genome-view` are pinned to an exact
 `5.0.0-beta.N` from npm's `next` tag, and `react-msaview@11` peers on
 `@jbrowse/core >=5.0.0-0`. The betas declare `@jbrowse/mobx-state-tree@6` and
-`mobx@7` themselves, so there are no pnpm overrides; `pnpm why
-@jbrowse/mobx-state-tree` should say "Found 1 version". Two majors in the tree
-show up far from the cause, as model types that stop narrowing across the
-`@jbrowse/core` boundary (mst's types are nominal).
+`mobx@7` themselves, so there are no pnpm overrides;
+`pnpm why @jbrowse/mobx-state-tree` should say "Found 1 version". Two majors in
+the tree show up far from the cause, as model types that stop narrowing across
+the `@jbrowse/core` boundary (mst's types are nominal).
 
 - Bumping the beta rewrites the `@jbrowse/*@5.0.0-beta.N` lines pnpm keeps under
   `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`; commit them with the
