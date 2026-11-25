@@ -21,6 +21,16 @@ the `@jbrowse/core` boundary (mst's types are nominal).
 - An RPC method is entered in `RpcRegistry` by module augmentation beside its
   class, which is what types `rpcManager.call('TviewGetPlan', …)`.
 
+## Figures
+
+- `pnpm figure` (local fixtures) and `pnpm figures:repeats` (GIAB, over the
+  network) start their own dev server on `FIGURE_PORT`, 9000 by default, and
+  `E2E_PORT` does the same for `pnpm test:e2e`. Use another port when 9000 is
+  taken.
+- A view asking for react-msaview's default `colWidth` (12) or `rowHeight` (16)
+  does not get it: `setAlignment` treats a default as unset and fits the column
+  width and sets 12px rows. Ask for 13 or 15.
+
 ## `typescript` is held at 6.x by eslint, not by this code
 
 `tsc` passes on TypeScript 7, but no `typescript-eslint` release supports it yet
@@ -54,8 +64,10 @@ be looked at at all:
 
 ## Everything here was measured on PacBio HiFi
 
-The trio, the loci, the constants and the figures are all one chemistry. Nothing
-has been tried on short reads or ONT, and the flank in `alleles.ts` (`FLANK_BP`,
+The trio, the loci, the constants and the repeat figures are all one chemistry.
+The only nanopore data is `public/methylation_clip.bam`, which the base
+modification tests and figure use and nothing measures. Nothing has been tried
+on short reads, nor repeats on ONT, and the flank in `alleles.ts` (`FLANK_BP`,
 or one copy, whichever is larger) is the parameter to expect to want more of:
 cuteSV's own constants differ 3x between CCS and noisy reads.
 
