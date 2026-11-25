@@ -416,6 +416,15 @@ export function planRowData({ reads, subject }: TviewPlan): RowDataInput {
   )
 }
 
+/** the value most of `values` share, the larger of two equally common */
+function commonest(values: number[]) {
+  const counts = new Map<number, number>()
+  for (const value of values) {
+    counts.set(value, (counts.get(value) ?? 0) + 1)
+  }
+  return [...counts].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0]![0]
+}
+
 // A bracket is kept in the session and drawn in one strip, and a noisy window
 // has an insertion site every few bases, so only the sites carrying the most
 // inserted sequence are marked.
@@ -434,27 +443,24 @@ export function planHighlights({
   const { start, offsets, insWidths, arrays } = layout
   const n = (x: number) => x.toLocaleString('en-US')
   const column = (pos: number) => offsets[pos - start]! + 1
-  const insertedBases = new Map<number, number>()
+  const lengthsAt = new Map<number, number[]>()
   for (const read of reads) {
     for (const [pos, ins] of read.insertions) {
-      insertedBases.set(
-        pos,
-        (insertedBases.get(pos) ?? 0) + ins.replaceAll(SPANNED_GAP, '').length,
-      )
+      const lengths = lengthsAt.get(pos) ?? []
+      lengths.push(ins.replaceAll(SPANNED_GAP, '').length)
+      lengthsAt.set(pos, lengths)
     }
   }
+  const insertedBases = (pos: number) =>
+    (lengthsAt.get(pos) ?? []).reduce((a, b) => a + b, 0)
   const insertions = [...insWidths]
     .filter(([, width]) => width > 0)
-    .sort(
-      (a, b) =>
-        (insertedBases.get(b[0]) ?? 0) - (insertedBases.get(a[0]) ?? 0) ||
-        a[0] - b[0],
-    )
+    .sort((a, b) => insertedBases(b[0]) - insertedBases(a[0]) || a[0] - b[0])
     .slice(0, MAX_INSERTION_BRACKETS)
     .map(([pos, width]) => ({
       start: column(pos),
       end: column(pos) + width - 1,
-      label: `+${width}bp after ${region.refName}:${n(pos)}`,
+      label: `+${commonest(lengthsAt.get(pos) ?? [width])}bp after ${region.refName}:${n(pos)}`,
     }))
   const blocks = arrays.map(array => {
     const copies = referenceName

@@ -600,6 +600,32 @@ describe('the row table', () => {
 })
 
 describe('planHighlights', () => {
+  it('labels a site with the length most reads insert, not its column count', () => {
+    const reference = 'ACGTTGCA'
+    const withInsertion = (name: string, ins: string) =>
+      feature({
+        name,
+        start: 0,
+        CIGAR: `4M${ins.length}I4M`,
+        seq: `${reference.slice(0, 4)}${ins}${reference.slice(4)}`,
+      })
+    const plan = planTviewMsa({
+      features: [
+        withInsertion('a', 'GGCC'),
+        withInsertion('b', 'GGCC'),
+        withInsertion('c', 'GGACC'),
+        withInsertion('d', 'GCC'),
+      ],
+      refName: 'ctgA',
+      start: 0,
+      end: reference.length,
+    })
+    expect(plan.layout.insWidths.get(4)).toBeGreaterThan(4)
+    expect(planHighlights(plan).map(h => h.label)).toEqual([
+      '+4bp after ctgA:4',
+    ])
+  })
+
   it('marks only the sites carrying the most inserted sequence', () => {
     const reference = 'ACGT'.repeat(120)
     const noise = Array.from({ length: 150 }, (_, i) =>

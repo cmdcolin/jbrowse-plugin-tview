@@ -191,15 +191,14 @@ reference are dots on grey, and a row is white where its read has no base.
 
 Each insertion site has a bracket in the Highlights strip above the alignment,
 labelled with the size and the reference base it follows, such as
-`+1bp after ctgA:15,163`. The size is the site's width in columns, so where
-reads disagree it is more than any one read inserted: HG002's reads have 280 to
-287bp of the Alu above, and the bracket over it is labelled `+290bp`. Each
-tandem array has a bracket labelled with its unit and the reference's copy
-count, such as `(GCG)x21 in the reference`. In a noisy window only the 100 sites
-carrying the most inserted sequence get a bracket. A one-column bracket draws as
-a triangle, and where brackets crowd, some are drawn without their label.
-Hovering a bracket outlines its columns, a click selects them, and a double
-click zooms to them.
+`+1bp after ctgA:15,163`. The size is the length most of the reads at the site
+insert: HG002's reads have 280 to 287bp of the Alu above, and the bracket over
+its 290 columns is labelled `+283bp`. Each tandem array has a bracket labelled
+with its unit and the reference's copy count, such as
+`(GCG)x21 in the reference`. In a noisy window only the 100 sites carrying the
+most inserted sequence get a bracket. A one-column bracket draws as a triangle,
+and where brackets crowd, some are drawn without their label. Hovering a bracket
+outlines its columns, a click selects them, and a double click zooms to them.
 
 ## How it is built
 
