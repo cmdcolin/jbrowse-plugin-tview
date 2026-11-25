@@ -60,6 +60,31 @@ has a column, bracketed as "+1bp after ctgA:15,163", where the reads with the
 insertion show their base, a C in all but one. Bases that match the reference
 are dots on grey, and a row is white where its read has no base.
 
+## Reads grouped by allele
+
+Within each sample's band, reads that share alleles are grouped, and a coloured
+strip beside the read names marks each group. In the Alu window, HG002's 22
+reads with the insertion form one group above the 23 without it, and each group
+matches one of the haplotypes GIAB's phasing tags the reads with.
+
+- A site is a position in the window where at least a quarter of the sample's
+  reads, and at least two, differ from the rest: a base, a deletion, or an
+  insertion some reads have and others lack. At a tandem array the site is the
+  copy count, split between the alleles the reads call (see
+  [Tandem repeats](tandem-repeats.md)).
+- Only sites spanned by at least half of the sample's reads count, so a few
+  reads at the window's edge do not form a group.
+- Each read joins the group whose alleles it contradicts least, with a site
+  counting for more the more bases its event spans, so an Alu outweighs a
+  scattered sequencing error.
+- Groups are ordered the same way in every band, the group with the insertion or
+  the longer allele first. A sample whose reads agree, such as a male at an X
+  locus, gets no groups, and a read that spans none of the sites is listed after
+  the groups.
+
+Grouping does not assume a ploidy, and it reads only the bases in the window, so
+two haplotypes that agree across the window are one group.
+
 ## Brackets
 
 Each insertion site has a bracket in the Highlights strip above the alignment,

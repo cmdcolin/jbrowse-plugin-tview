@@ -53,6 +53,7 @@ function handBuilt(overrides: Partial<TviewPlanResult> = {}): TviewPlanResult {
     cellCount: 2 * REFERENCE_ROW.length,
     region: { refName: 'ctgA', start: 100, end: 110 },
     hasSubject: true,
+    hasClusters: false,
     samples: ['HG002'],
     ...overrides,
   }
@@ -94,7 +95,7 @@ describe('a view from a bare init', () => {
     const model = await loaded()
     expect(model.rowTransform).toEqual({
       facet: { field: 'sample', sort: [REFERENCE, 'HG002'] },
-      sort: [{ field: 'copies', order: 'descending' }],
+      sort: [{ field: 'copies', order: 'descending' }, { field: 'cluster' }],
     })
     expect(model.rowPanels.map(p => p.kind)).toEqual(['bar', 'text'])
     expect(JSON.parse(model.data.treeMetadata!)).toEqual(handBuilt().rowData)
@@ -105,8 +106,15 @@ describe('a view from a bare init', () => {
     const model = await loaded()
     expect(model.rowTransform).toEqual({
       facet: { field: 'sample', sort: [REFERENCE, 'HG002'] },
+      sort: [{ field: 'cluster' }],
     })
     expect(model.rowPanels).toHaveLength(0)
+  })
+
+  it('draws a strip for the allele groups when the reads split into some', async () => {
+    fetchPlan.mockResolvedValue(handBuilt({ hasClusters: true }))
+    const model = await loaded()
+    expect(model.rowPanels.map(p => p.kind)).toEqual(['strip', 'bar', 'text'])
   })
 
   it('reads every row against the reference, in DNA colours', async () => {

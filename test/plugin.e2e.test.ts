@@ -664,6 +664,7 @@ describe('tview plugin in jbrowse-web', () => {
     expect(state.colWidth).toBe(10)
     expect(state.rowTransform).toEqual({
       facet: { field: 'sample', sort: ['reference', 'volvox-sorted.bam'] },
+      sort: [{ field: 'cluster' }],
     })
     expect(state.bands).toEqual(['reference', 'volvox-sorted.bam'])
     expect(state.menuLabels).toContain('Zoom to base level on click?')
@@ -845,6 +846,7 @@ describe('tview plugin in jbrowse-web', () => {
     ])
     expect(state.rowTransform.sort).toEqual([
       { field: 'copies', order: 'descending' },
+      { field: 'cluster' },
     ])
     expect(state.panels).toEqual(['bar', 'text'])
     // the same reads arrive from both tracks, and every one keeps its row

@@ -72,6 +72,19 @@ const DNA_COLORS: ResidueColorDefault = {
   scale: { scheme: 'jbrowse_dna' },
 }
 
+const CLUSTER_STRIP: RowPanelSpec = {
+  kind: 'strip',
+  header: 'group',
+  width: 8,
+  encoding: {
+    fill: {
+      field: 'cluster',
+      scale: { type: 'ordinal', scheme: 'okabeito' },
+      legend: { title: 'allele group' },
+    },
+  },
+}
+
 const COPY_PANELS: RowPanelSpec[] = [
   {
     kind: 'bar',
@@ -89,7 +102,10 @@ const COPY_PANELS: RowPanelSpec[] = [
 function rowTransform(samples: string[], bySubject: boolean): RowTransform {
   return {
     facet: { field: 'sample', sort: [REFERENCE, ...samples] },
-    ...(bySubject ? { sort: [{ field: 'copies', order: 'descending' }] } : {}),
+    sort: [
+      ...(bySubject ? [{ field: 'copies', order: 'descending' } as const] : []),
+      { field: 'cluster' },
+    ],
   }
 }
 
@@ -126,7 +142,7 @@ export default function stateModelFactory() {
           rowHeight: ROW_HEIGHT,
           labelsAlignRight: true,
           residueColor: DNA_COLORS,
-          turnedOffTracks: { 'position-ruler': false },
+          turnedOffTracks: { 'position-ruler': false, conservation: true },
         },
       }),
       types.model({
@@ -363,7 +379,7 @@ export default function stateModelFactory() {
        * carries its own copies of them, which are dropped here
        */
       setAlignment(result: TviewPlanResult) {
-        const { region, highlights } = result
+        const { region, highlights, hasClusters } = result
         const bySubject = result.hasSubject
         const rebuilt = new Set(highlights.map(highlightKey))
         self.loadedRegion = region
@@ -372,7 +388,10 @@ export default function stateModelFactory() {
         self.data.setTree(undefined)
         self.setRowData(result.rowData)
         self.setRowTransform(rowTransform(result.samples, bySubject))
-        self.setRowPanels(bySubject ? COPY_PANELS : [])
+        self.setRowPanels([
+          ...(hasClusters ? [CLUSTER_STRIP] : []),
+          ...(bySubject ? COPY_PANELS : []),
+        ])
         self.setRowCoordinates([
           { row: REFERENCE, start: region.start + 1, name: region.refName },
         ])
@@ -461,6 +480,7 @@ export default function stateModelFactory() {
     .actions(self => ({
       afterCreate() {
         self.setImportForm(false)
+        self.setEmbeddedMode(true)
         addDisposer(
           self,
           autorun(() => {

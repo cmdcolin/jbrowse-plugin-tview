@@ -84,6 +84,8 @@ The 5mC calls without base colours, one of them in an inserted column.
 - Tandem repeats are laid out a copy per block, each row's copy count drawn
   beside it, with rows sorted into a ladder of alleles
 - Several BAM/CRAM files read into one alignment, in a band per sample
+- Each sample's reads grouped by the alleles they share, so the reads with an
+  insertion sit together above the reads without it
 - Base modification calls from MM/ML tags drawn on their bases, inserted ones
   included
 - Linked to the genome view it came from: hovering or clicking a column moves

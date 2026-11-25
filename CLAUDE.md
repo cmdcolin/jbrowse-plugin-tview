@@ -42,8 +42,8 @@ the `@jbrowse/core` boundary (mst's types are nominal).
 - A view asking for a `colWidth` of 10 does not get it on an alignment wider
   than 300 columns: 10 is the host default the model gives `MSAModelF`, and
   `setAlignment` reads it as unset and fits the width. Every other default (12px
-  rows, right-aligned labels, DNA colours, the ruler on) is set the same way and
-  a session's own value is kept, 16px rows included.
+  rows, right-aligned labels, DNA colours, the ruler on, Conservation off) is
+  set the same way and a session's own value is kept, 16px rows included.
 
 ## `typescript` is held at 6.x by eslint, not by this code
 
@@ -107,8 +107,7 @@ Two blockers, both outside this repo, and they fix the order of the work:
   pushes.
 - A spec-driven figure loads the plugin from the store's `latest/` path (the
   pattern `PROTEIN3D_CONFIG` uses), which serves whatever is published — so the
-  screenshots disagree with these docs until the measurement change is
-  released.
+  screenshots disagree with these docs until the measurement change is released.
 
 So: publish the plugin first, then build `test_data/tview_config.json` plus a
 spec in `website/scripts/specs/`, then push the figures. Ask before publishing —

@@ -56,7 +56,9 @@ At each array:
 - **Each row's copy count is drawn beside it**, as a bar in the `copies` panel
   and a number in the `n` panel.
 - **Rows sort by copy count, most copies first**, within each sample's band, so
-  the alleles form a ladder.
+  the alleles form a ladder. Rows with the same count are ordered by
+  [allele group](insertions.md#reads-grouped-by-allele), which uses the copy
+  count as one of its sites.
 - **The column width starts at the width that fits the alignment in about
   3,000px**, between 1 and 10px, so most of a long array is on screen.
 
