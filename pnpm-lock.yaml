@@ -91,8 +91,8 @@ importers:
         specifier: ^19.2.8
         version: 19.2.8(react@19.2.8)
       react-msaview:
-        specifier: ^11.0.0
-        version: 11.0.0(@jbrowse/core@5.0.0-beta.23(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@jbrowse/mobx-state-tree@6.10.1(mobx@7.1.7))(@mui/icons-material@9.3.1(@mui/material@9.3.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/react@19.2.18)(react@19.2.8))(@mui/material@9.3.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(mobx-react@10.0.4(mobx@7.1.7)(react@19.2.8))(mobx@7.1.7)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        specifier: ^11.1.0
+        version: 11.1.0(@jbrowse/core@5.0.0-beta.23(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@jbrowse/mobx-state-tree@6.10.1(mobx@7.1.7))(@mui/icons-material@9.3.1(@mui/material@9.3.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/react@19.2.18)(react@19.2.8))(@mui/material@9.3.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(mobx-react@10.0.4(mobx@7.1.7)(react@19.2.8))(mobx@7.1.7)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       rimraf:
         specifier: ^6.1.3
         version: 6.1.3
@@ -594,8 +594,8 @@ packages:
     peerDependencies:
       react: '>=19.0.0'
 
-  '@jbrowse/svgcanvas@11.0.0':
-    resolution: {integrity: sha512-w5wVmcftT/b8Z3L1te/agvlwTtapl5G7rAgHy79+cJhA+FpnfkUpAY147KEJa7fTCq5FpcpmVIDfDo+n8Dwp1g==}
+  '@jbrowse/svgcanvas@11.1.0':
+    resolution: {integrity: sha512-LG4P6Z0Kxe/cZQ7ksIB8ax26V/wMOGMphYqv+/BeV+Y0UK8xJBykHZgZ4hMSdFNTbo4+fbebKzz/utnXHfYdJg==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -2020,11 +2020,11 @@ packages:
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
 
-  msa-coordinates@11.0.0:
-    resolution: {integrity: sha512-De3rzWtOORrlkrv6xOKpOi5r0QAGNrl0rVbxDTP1rP0ae13pKJ0ve2LFFQwp7a/E/hLstZIoBsrp/xxf35hiww==}
+  msa-coordinates@11.1.0:
+    resolution: {integrity: sha512-EHVHIRxisnJNgLBByNfEkBbl600jGlMHvYo8xT3/RxO20wItrg2JgaPHIJW5lFfrWO+mBIR0uOE7e3WfPooQpw==}
 
-  msa-parsers@11.0.0:
-    resolution: {integrity: sha512-hg4PvTKPkk3yHONqoeHXBx1gnvF2NgFix3dAHaifshYBtwMB+1d+7g+T5coAjpXhVSdgkM0Iy+Qfk/Pj6Vjpng==}
+  msa-parsers@11.1.0:
+    resolution: {integrity: sha512-a/ZpxLOsYAnAHuWdmeuJ/+DzQfuxCwCMsOBYL9SHxBaN9dfK6cKYK4pPEwlpnChUG/bxETTO2eWCDOhcEYqQeA==}
 
   nanoid@3.3.18:
     resolution: {integrity: sha512-DTg4MJbGMWkfi6VZFdNt2/caMbQy4Ou+Op/hJQvGEWcnVfoA1QA+xzRKAzw9jD6+GVOOeYr/mIcuDSdug6F6+w==}
@@ -2189,8 +2189,8 @@ packages:
   react-is@19.3.1:
     resolution: {integrity: sha512-RRieF6IyxQBkcK6pP8xOHprLTPW6QjRkbGdImtqNme+/hYVwCZkLQLdlZGOhUqXwkS9IEynaGvPJtv6XB/cz0Q==}
 
-  react-msaview@11.0.0:
-    resolution: {integrity: sha512-IUsXXptax2xLEkNB8XZfYUdCi9IB6WoW8N0yUIBwBuZK0XG6rXuUy5g3KZ3339+N7x2XKpW72x8Rlh0HoTU0Vg==}
+  react-msaview@11.1.0:
+    resolution: {integrity: sha512-0yxKNT/U2uo54PCzEVFNzzI0fHYBcTVb/Y/AVNlbwtGgDlbXgS19kfzgJMBL8+aYdCXF5ucDvvyutTHrmYeHZw==}
     engines: {node: '>=18'}
     peerDependencies:
       '@jbrowse/core': '>=5.0.0-0'
@@ -3202,7 +3202,7 @@ snapshots:
       mobx-react: 10.0.4(mobx@7.1.7)(react@19.2.8)
       react: 19.2.8
 
-  '@jbrowse/svgcanvas@11.0.0': {}
+  '@jbrowse/svgcanvas@11.1.0': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -4699,9 +4699,9 @@ snapshots:
 
   ms@2.1.3: {}
 
-  msa-coordinates@11.0.0: {}
+  msa-coordinates@11.1.0: {}
 
-  msa-parsers@11.0.0:
+  msa-parsers@11.1.0:
     dependencies:
       '@gmod/newick': 1.1.0
       clustal-js: 2.0.19
@@ -4879,20 +4879,20 @@ snapshots:
 
   react-is@19.3.1: {}
 
-  react-msaview@11.0.0(@jbrowse/core@5.0.0-beta.23(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@jbrowse/mobx-state-tree@6.10.1(mobx@7.1.7))(@mui/icons-material@9.3.1(@mui/material@9.3.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/react@19.2.18)(react@19.2.8))(@mui/material@9.3.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(mobx-react@10.0.4(mobx@7.1.7)(react@19.2.8))(mobx@7.1.7)(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
+  react-msaview@11.1.0(@jbrowse/core@5.0.0-beta.23(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@jbrowse/mobx-state-tree@6.10.1(mobx@7.1.7))(@mui/icons-material@9.3.1(@mui/material@9.3.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/react@19.2.18)(react@19.2.8))(@mui/material@9.3.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(mobx-react@10.0.4(mobx@7.1.7)(react@19.2.8))(mobx@7.1.7)(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
     dependencies:
       '@gmod/newick': 1.1.0
       '@jbrowse/core': 5.0.0-beta.23(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@jbrowse/mobx-state-tree': 6.10.1(mobx@7.1.7)
-      '@jbrowse/svgcanvas': 11.0.0
+      '@jbrowse/svgcanvas': 11.1.0
       '@mui/icons-material': 9.3.1(@mui/material@9.3.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/react@19.2.18)(react@19.2.8)
       '@mui/material': 9.3.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       colord: 2.10.0
       flatbush: 4.7.0
       mobx: 7.1.7
       mobx-react: 10.0.4(mobx@7.1.7)(react@19.2.8)
-      msa-coordinates: 11.0.0
-      msa-parsers: 11.0.0
+      msa-coordinates: 11.1.0
+      msa-parsers: 11.1.0
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
 
