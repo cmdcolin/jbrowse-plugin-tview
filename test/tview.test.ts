@@ -220,6 +220,40 @@ describe('buildTviewMsa', () => {
     expect(differing).toBe(inserted[120])
   })
 
+  it('pads a read that begins at an insertion site as absent', () => {
+    // the read has no base before position 3, so it does not span the
+    // insertion columns there; '-' would claim it does, without the insertion
+    const { msa } = buildTviewMsa({
+      features: [
+        feature({ name: 'r1', start: 0, CIGAR: '3M2I3M', seq: 'AAAGGCCC' }),
+        feature({ name: 'r2', start: 3, CIGAR: '3M', seq: 'CCC' }),
+      ],
+      refName: 'ctgA',
+      start: 0,
+      end: 6,
+    })
+    expect(Object.fromEntries(rows(msa))).toEqual({
+      r1: 'AAAGGCCC',
+      r2: '.....CCC',
+    })
+  })
+
+  it('pads a read that resumes after an intron at an insertion site as absent', () => {
+    const { msa } = buildTviewMsa({
+      features: [
+        feature({ name: 'r1', start: 0, CIGAR: '3M2I3M', seq: 'AAAGGCCC' }),
+        feature({ name: 'r2', start: 0, CIGAR: '1M2N3M', seq: 'ACCC' }),
+      ],
+      refName: 'ctgA',
+      start: 0,
+      end: 6,
+    })
+    expect(Object.fromEntries(rows(msa))).toEqual({
+      r1: 'AAAGGCCC',
+      r2: 'A....CCC',
+    })
+  })
+
   it('distinguishes skipped reference from deleted reference', () => {
     const { msa } = buildTviewMsa({
       features: [

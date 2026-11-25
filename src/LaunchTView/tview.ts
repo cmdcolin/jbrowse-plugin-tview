@@ -228,10 +228,15 @@ export function renderRow(read: ReadLayout, layout: ColumnLayout) {
       continue
     }
     const refChar = pos < lastPos ? read.refChars[pos - read.start]! : ABSENT
-    // a read that is not really here pads the insertion the same way it pads
-    // the reference column, so an intron reads as one absence
-    const pad = refChar === ABSENT ? ABSENT : SPANNED_GAP
     const ins = read.insertions.get(pos) ?? ''
+    // insertion columns sit between pos - 1 and pos, so a read that is absent
+    // on either side, an intron or its own first base, does not span them
+    const spans =
+      ins !== '' ||
+      (refChar !== ABSENT &&
+        pos > read.start &&
+        read.refChars[pos - read.start - 1] !== ABSENT)
+    const pad = spans ? SPANNED_GAP : ABSENT
     ret += ins + pad.repeat(insWidths.get(pos)! - ins.length) + refChar
     pos++
   }
