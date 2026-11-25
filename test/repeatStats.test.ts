@@ -93,10 +93,9 @@ describe('summarizePlan', () => {
     })
   }
 
-  it('finds a sample whose name Newick-sanitizing rewrote', () => {
-    // rows are prefixed with the safe form, so matching on the name as given
-    // found none of them — and nought spanning reads is what an unsequenced
-    // locus looks like, not what a track called `HG004 (mother)` should
+  it('finds a sample by the name it was given, punctuation and all', () => {
+    // nought spanning reads is what an unsequenced locus looks like, not what
+    // a track called `HG004 (mother)` should
     const [array] = summarizePlan(planForSample(), [sample]).arrays
     expect(array!.samples[0]).toMatchObject({
       sample,

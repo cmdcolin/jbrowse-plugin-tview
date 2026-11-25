@@ -2,7 +2,6 @@ import { BamFile } from '@gmod/bam'
 import { describe, expect, it } from 'vitest'
 
 import { buildTviewMsa } from '../src/LaunchTView/tview'
-import { buildColumnToRefPos } from '../src/TViewPanel/coords'
 
 // volvox-sorted-altname.bam names its only contig 'contigA' (the demo config
 // maps it back to ctgA via refNameAliases)
@@ -43,7 +42,7 @@ describe('buildTviewMsa on volvox-sorted-altname.bam', () => {
     const features = await fetchReads(REF, START, END)
     expect(features.length).toBeGreaterThan(0)
 
-    const { msa, insertionWidths, region } = buildTviewMsa({
+    const { msa, insertionWidths } = buildTviewMsa({
       features,
       refName: REF,
       start: START,
@@ -59,16 +58,11 @@ describe('buildTviewMsa on volvox-sorted-altname.bam', () => {
     // that width is the region width plus one column per inserted base
     const extra = insertionWidths.reduce((a, [, w]) => a + w, 0)
     expect(rows[0]!.seq.length).toBe(END - START + extra)
-
-    // the column -> reference position map spans exactly those columns
-    expect(buildColumnToRefPos({ ...region, insertionWidths }).length).toBe(
-      rows[0]!.seq.length,
-    )
   })
 
   it('gives the insertion its own column and pads reads lacking it', async () => {
     const features = await fetchReads(REF, START, END)
-    const { msa, insertionWidths, region } = buildTviewMsa({
+    const { msa, insertionWidths, highlights } = buildTviewMsa({
       features,
       refName: REF,
       start: START,
@@ -77,11 +71,10 @@ describe('buildTviewMsa on volvox-sorted-altname.bam', () => {
 
     expect(insertionWidths).toContainEqual([INS_POS, 1])
 
-    // locate the single insertion column belonging to INS_POS: it is the first
-    // column mapping to INS_POS, since insertion columns precede the ref column
-    const colToRefPos = buildColumnToRefPos({ ...region, insertionWidths })
-    const insCol = colToRefPos.indexOf(INS_POS)
-    expect(colToRefPos[insCol + 1]).toBe(INS_POS)
+    // the site's bracket names its column, 1-based
+    const site = highlights.find(h => h.label === `+1bp after ${REF}:15,163`)
+    expect(site).toMatchObject({ end: site?.start })
+    const insCol = site!.start! - 1
 
     const chars = parseMsa(msa).map(r => r.seq[insCol])
     // reads with the insertion contribute a base; reads that merely span the
@@ -93,19 +86,15 @@ describe('buildTviewMsa on volvox-sorted-altname.bam', () => {
     expect(new Set(chars).size).toBeGreaterThan(1)
   })
 
-  it('maps an insertion column back to its reference position', async () => {
+  it('brackets one site per insertion position', async () => {
     const features = await fetchReads(REF, START, END)
-    const { insertionWidths, region } = buildTviewMsa({
+    const { insertionWidths, highlights } = buildTviewMsa({
       features,
       refName: REF,
       start: START,
       end: END,
     })
-    const colToRefPos = buildColumnToRefPos({ ...region, insertionWidths })
-    // an insertion column resolves to the reference position it sits before,
-    // which is what drives the genome-view highlight
-    expect(colToRefPos[colToRefPos.indexOf(INS_POS)]).toBe(INS_POS)
-    expect(colToRefPos[0]).toBe(START)
-    expect(colToRefPos.at(-1)).toBe(END - 1)
+    expect(highlights).toHaveLength(insertionWidths.length)
+    expect(highlights.every(h => h.mark === 'bracket')).toBe(true)
   })
 })

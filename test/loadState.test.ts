@@ -5,6 +5,7 @@ import { fakeSession } from './fakeSession'
 import { fetchTviewPlan } from '../src/LaunchTView/fetchTviewPlan'
 import stateModelFactory from '../src/TViewPanel/model'
 
+import type { TviewPlanResult } from '../src/LaunchTView/TviewGetPlanRpc/TviewGetPlan'
 import type { TviewInit } from '../src/TViewPanel/init'
 
 const session = vi.hoisted(() => ({ current: {} }))
@@ -19,14 +20,14 @@ vi.mock('../src/LaunchTView/fetchTviewPlan', () => ({
 
 const fetchPlan = vi.mocked(fetchTviewPlan)
 
-function plan(msa: string) {
+function plan(msa: string): TviewPlanResult {
   return {
     msa,
+    rowData: {},
+    highlights: [],
     rowCount: 1,
     columnCount: 4,
     cellCount: 4,
-    insertionWidths: [],
-    arraySpans: [],
     region: { refName: 'ctgA', start: 0, end: 4 },
     arrays: [],
     samples: [],
@@ -34,9 +35,9 @@ function plan(msa: string) {
 }
 
 function deferred() {
-  let resolve: (value: ReturnType<typeof plan>) => void = () => {}
+  let resolve: (value: TviewPlanResult) => void = () => {}
   let reject: (reason: unknown) => void = () => {}
-  const promise = new Promise<ReturnType<typeof plan>>((res, rej) => {
+  const promise = new Promise<TviewPlanResult>((res, rej) => {
     resolve = res
     reject = rej
   })
@@ -103,11 +104,12 @@ describe('the load state', () => {
     expect(fetchPlan.mock.calls[1]![0].region.start).toBe(4)
   })
 
-  it('does not refetch an alignment a snapshot already carries', async () => {
-    const model = view({ data: { msa: '>ctgA\nACGT\n' } })
+  it('rebuilds from init even when the snapshot carries an alignment', async () => {
+    fetchPlan.mockResolvedValue(plan('>reference\nACGT\n'))
+    const model = view({ data: { msa: '>stale\nTTTT\n' } })
     await settle()
-    expect(fetchPlan).not.toHaveBeenCalled()
-    expect(model.viewState.kind).toBe('alignment')
+    expect(fetchPlan).toHaveBeenCalledTimes(1)
+    expect(model.data.msa).toBe('>reference\nACGT\n')
   })
 
   it('drops a result for an init that has since been replaced', async () => {

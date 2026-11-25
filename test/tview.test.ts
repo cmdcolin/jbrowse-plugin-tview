@@ -1,16 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  REFERENCE,
   buildTviewMsa,
   parseCigar,
   parseRead,
+  planHighlights,
+  planRowData,
   planTviewMsa,
   renderTviewMsa,
 } from '../src/LaunchTView/tview'
-import {
-  buildColumnToRefPos,
-  renderedColToMsaCol,
-} from '../src/TViewPanel/coords'
 
 import type { AlignmentFeature } from '../src/LaunchTView/tview'
 
@@ -313,32 +312,6 @@ describe('buildTviewMsa', () => {
   })
 })
 
-describe('buildColumnToRefPos', () => {
-  it('inverts the column layout, insertion columns before their position', () => {
-    // matches the 'AAAGGGCCC' layout above: 3 insertion columns at pos 3
-    expect(
-      buildColumnToRefPos({ start: 0, end: 6, insertionWidths: [[3, 3]] }),
-    ).toEqual([0, 1, 2, 3, 3, 3, 3, 4, 5])
-  })
-
-  it('round-trips against the alignment buildTviewMsa produces', () => {
-    const features = [
-      feature({ name: 'r1', start: 0, CIGAR: '3M3I3M', seq: 'AAAGGGCCC' }),
-      feature({ name: 'r2', start: 0, CIGAR: '5M2I1M', seq: 'AAAAAGGC' }),
-    ]
-    const { msa, insertionWidths, region } = buildTviewMsa({
-      features,
-      refName: 'ctgA',
-      start: 0,
-      end: 6,
-    })
-    const colToRefPos = buildColumnToRefPos({ ...region, insertionWidths })
-    expect(colToRefPos.length).toBe(rows(msa)[0]![1].length)
-    // every reference position in the region is reachable from some column
-    expect([...new Set(colToRefPos)]).toEqual([0, 1, 2, 3, 4, 5])
-  })
-})
-
 describe('planTviewMsa', () => {
   it('counts the cells the render would produce, without rendering', () => {
     const plan = planTviewMsa({
@@ -368,7 +341,7 @@ describe('planTviewMsa', () => {
     })
     expect(plan.arrays).toEqual([])
     expect(plan.subject).toBeUndefined()
-    expect(plan.reads.map(r => r.name)).toEqual(['ctgA', 'r1', 'r2'])
+    expect(plan.reads.map(r => r.name)).toEqual([REFERENCE, 'r1', 'r2'])
   })
 })
 
@@ -443,25 +416,12 @@ describe('planTviewMsa on a reference tandem array', () => {
   })
 
   it('counts the reference as an allele of its own', () => {
-    expect(plan.subject!.copiesByName.get('chr1')).toBe(REF_COPIES)
+    expect(plan.subject!.copiesByName.get(REFERENCE)).toBe(REF_COPIES)
   })
 
-  it('labels each row with its copy count and keeps the reference on top', () => {
-    expect(plan.reads.map(r => r.label)).toEqual([
-      'chr1|n=10',
-      'expanded_early|n=14',
-      'expanded_late|n=14',
-      'reference_length|n=10',
-      'contracted|n=7',
-    ])
-  })
-
-  it('labels without renaming, so the blocks keyed by name still resolve', () => {
-    // the label is added after the array blocks are built and keyed. Renaming
-    // in place instead left every labelled row unable to find its own block —
-    // it fell back to gaps, and the row rendered blank under its own label
+  it('keeps the rows in genomic order, the reference first', () => {
     expect(plan.reads.map(r => r.name)).toEqual([
-      'chr1',
+      REFERENCE,
       'expanded_early',
       'expanded_late',
       'reference_length',
@@ -469,10 +429,26 @@ describe('planTviewMsa on a reference tandem array', () => {
     ])
   })
 
-  it('keeps the label in one defline token, which FastaMSA truncates at', () => {
-    for (const read of plan.reads) {
-      expect(read.label).not.toContain(' ')
-    }
+  it('gives each row its copies and allele length in the row table', () => {
+    expect(planRowData(plan)).toEqual({
+      [REFERENCE]: { sample: REFERENCE, copies: 10, alleleBp: 30 },
+      expanded_early: { copies: 14, alleleBp: 42 },
+      expanded_late: { copies: 14, alleleBp: 42 },
+      reference_length: { copies: 10, alleleBp: 30 },
+      contracted: { copies: 7, alleleBp: 21 },
+    })
+  })
+
+  it('brackets the array block, naming its unit and the reference count', () => {
+    const column = FLANK.length + 1
+    expect(planHighlights(plan)).toEqual([
+      {
+        start: column,
+        end: column + plan.subject!.width - 1,
+        label: '(CAG)x10 in the reference',
+        mark: 'bracket',
+      },
+    ])
   })
 
   it('puts copy k of every row in the same columns', () => {
@@ -488,13 +464,7 @@ describe('planTviewMsa on a reference tandem array', () => {
 
   it('renders every row with its flanks, its block and nothing absent', () => {
     const rendered = rows(renderTviewMsa(plan))
-    expect(rendered.map(([name]) => name)).toEqual([
-      'chr1|n=10',
-      'expanded_early|n=14',
-      'expanded_late|n=14',
-      'reference_length|n=10',
-      'contracted|n=7',
-    ])
+    const copiesOf = Object.fromEntries(plan.subject!.copiesByName)
     for (const [name, seq] of rendered) {
       expect(seq.length).toBe(plan.layout.totalColumns)
       // every row spans the whole region, so nothing is outside it
@@ -503,7 +473,7 @@ describe('planTviewMsa on a reference tandem array', () => {
       expect(seq.startsWith(FLANK)).toBe(true)
       expect(seq.endsWith(FLANK)).toBe(true)
       // and the array block is the row's own allele, not a run of gaps
-      const copies = Number(/n=(\d+)/.exec(name)![1])
+      const copies = copiesOf[name]!
       expect(
         seq.split('').filter(c => c === 'C').length,
       ).toBeGreaterThanOrEqual(copies)
@@ -555,7 +525,7 @@ describe('rows at an array block that carry no copies of it', () => {
     // dropping it left the row indistinguishable from one that never got here
     expect(block.copiesByName.get('deleted')).toBe(0)
     expect(block.lengthByName.get('deleted')).toBe(0)
-    expect(atBlock('deleted|n=0')).toBe('-'.repeat(block.width))
+    expect(atBlock('deleted')).toBe('-'.repeat(block.width))
   })
 
   it('measures nothing for a row that skips the array through an N', () => {
@@ -569,19 +539,77 @@ describe('rows at an array block that carry no copies of it', () => {
   })
 })
 
-describe('renderedColToMsaCol', () => {
-  it('is the identity when nothing is hidden', () => {
-    expect([0, 1, 2].map(c => renderedColToMsaCol([], c))).toEqual([0, 1, 2])
+describe('the row table', () => {
+  const sequence = 'AAACCC'
+  const samples = ['HG002 (son)', 'HG002 (son)', 'HG003', 'HG003']
+  const plan = planTviewMsa({
+    features: [
+      feature({ name: 'read 1', start: 0, CIGAR: '6M', seq: 'AAACCC' }),
+      feature({ name: 'shared', start: 1, CIGAR: '5M', seq: 'AACCC' }),
+      feature({ name: 'shared', start: 0, CIGAR: '6M', seq: 'AAACCC' }),
+      feature({ name: REFERENCE, start: 2, CIGAR: '4M', seq: 'ACCC' }),
+    ],
+    refName: 'chr1',
+    start: 0,
+    end: sequence.length,
+    sequence,
+    sampleOf: i => samples[i],
   })
 
-  it('skips past hidden all-gap columns', () => {
-    // full columns 1 and 3 are hidden, so rendered 0..2 -> full 0, 2, 4
-    expect([0, 1, 2].map(c => renderedColToMsaCol([1, 3], c))).toEqual([
-      0, 2, 4,
+  it('names each row by its sample, the reference by its own', () => {
+    expect(planRowData(plan)).toEqual({
+      [REFERENCE]: { sample: REFERENCE },
+      read_1: { sample: 'HG002 (son)' },
+      shared_2: { sample: 'HG003' },
+      shared: { sample: 'HG002 (son)' },
+      [`${REFERENCE}_2`]: { sample: 'HG003' },
+    })
+  })
+
+  it('gives every row a unique name with no whitespace, across samples', () => {
+    const names = rows(renderTviewMsa(plan)).map(([name]) => name)
+    expect(new Set(names).size).toBe(plan.reads.length)
+    for (const name of names) {
+      expect(name).not.toMatch(/\s/)
+    }
+  })
+
+  it('lists the samples in the order they were given', () => {
+    expect(plan.samples).toEqual(['HG002 (son)', 'HG003'])
+  })
+
+  it('leaves copies out where there is no array', () => {
+    for (const entry of Object.values(planRowData(plan))) {
+      expect(entry).not.toHaveProperty('copies')
+    }
+  })
+})
+
+describe('planHighlights', () => {
+  it('brackets each insertion site in 1-based file columns', () => {
+    const plan = planTviewMsa({
+      features: [
+        feature({ name: 'r1', start: 100, CIGAR: '3M3I3M', seq: 'AAAGGGCCC' }),
+        feature({ name: 'r2', start: 100, CIGAR: '5M1I1M', seq: 'AAACCTC' }),
+      ],
+      refName: 'ctgA',
+      start: 100,
+      end: 106,
+    })
+    // AAA GGG CC T C: the sites follow 1-based bases 103 and 105
+    expect(planHighlights(plan)).toEqual([
+      { start: 4, end: 6, label: '+3bp after ctgA:103', mark: 'bracket' },
+      { start: 9, end: 9, label: '+1bp after ctgA:105', mark: 'bracket' },
     ])
   })
 
-  it('handles hidden columns at the start', () => {
-    expect([0, 1].map(c => renderedColToMsaCol([0, 1], c))).toEqual([2, 3])
+  it('marks nothing over a region with no insertion or array', () => {
+    const plan = planTviewMsa({
+      features: [feature({ name: 'r', start: 0, CIGAR: '4M', seq: 'ACGT' })],
+      refName: 'ctgA',
+      start: 0,
+      end: 4,
+    })
+    expect(planHighlights(plan)).toEqual([])
   })
 })

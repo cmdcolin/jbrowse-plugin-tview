@@ -13,10 +13,10 @@ import {
   parseRead,
 } from './readLayout'
 import { findReferenceArrays, mergeArrays } from './repeats'
-import { newickSafe } from './sampleTree'
 
 import type { ArrayBlock } from './alleles'
 import type { AlignmentFeature, ReadLayout } from './readLayout'
+import type { Highlight, RowDataInput } from 'react-msaview'
 
 export type { AlignmentFeature, ReadLayout } from './readLayout'
 export { clipInsertions, parseCigar, parseRead } from './readLayout'
@@ -243,71 +243,23 @@ export function renderRow(read: ReadLayout, layout: ColumnLayout) {
   return ret + ABSENT.repeat(totalColumns - offsets[to - start]!)
 }
 
-// A defline is truncated at its first space (msa-parsers' FastaMSA), so the
-// count is joined on. `labelsAlignRight` puts it flush against the sequence.
-const COPY_COUNT_SEPARATOR = '|'
-
 /**
- * What a row is called on screen. The one place `label` falls back to `name`,
- * so the defline and the tree leaf cannot disagree about it — react-msaview
- * joins them by string, and a row the tree names differently renders blank.
+ * The reference row's name, and the sample its row table entry gives it. Not
+ * the sequence's own name: react-msaview prints a row's residues as
+ * `<row>:<index>`, and `chr4:25` would read as a genome coordinate when it is an
+ * index into the window.
  */
-export function rowLabel(read: ReadLayout) {
-  return read.label ?? read.name
-}
-
-/**
- * Rows ordered longest-allele-first and labelled with their copy count.
- *
- * Copy number is the measurement at a tandem array, and reading it off where a
- * row runs out is the thing the unit-per-block layout exists to avoid, so it is
- * stated in the label. Ordering by it puts the alleles in a ladder, which is
- * what makes one row's array comparable to the next at a glance. Rows that do
- * not span the array keep genomic order, below the ones that do; the reference
- * stays on top whatever its allele, since it is what the columns are named
- * after rather than one of the observations.
- */
-export function labelAndOrderByCopies(
-  reads: ReadLayout[],
-  array: ArrayBlock,
-  referenceName?: string,
-) {
-  const rank = (read: ReadLayout) => (read.name === referenceName ? 1 : 0)
-  return reads
-    .map(read => ({ read, copies: array.copiesByName.get(read.name) }))
-    .sort((a, b) => {
-      const byRef = rank(b.read) - rank(a.read)
-      if (byRef) {
-        return byRef
-      }
-      if (a.copies === undefined || b.copies === undefined) {
-        return a.copies === b.copies
-          ? byStart(a.read, b.read)
-          : a.copies === undefined
-            ? 1
-            : -1
-      }
-      return b.copies - a.copies || byStart(a.read, b.read)
-    })
-    .map(({ read, copies }) =>
-      copies === undefined
-        ? read
-        : { ...read, label: `${read.name}${COPY_COUNT_SEPARATOR}n=${copies}` },
-    )
-}
+export const REFERENCE = 'reference'
 
 export interface TviewPlan {
   reads: ReadLayout[]
   layout: ColumnLayout
-  insertionWidths: [number, number][]
-  /** [start, end, width] per array block, to rebuild the column mapping */
-  arraySpans: [number, number, number][]
   region: { refName: string; start: number; end: number }
   /** rows x columns, i.e. how big the alignment renderTviewMsa builds will be */
   cellCount: number
   /** tandem arrays the reference carries here, left to right */
   arrays: ArrayBlock[]
-  /** the array the rows are ordered and labelled by, when there is one */
+  /** the array the rows are ordered by, when there is one */
   subject?: ArrayBlock
   /** name of the reference row, when the reference sequence was available */
   referenceName?: string
@@ -345,7 +297,7 @@ export function planTviewMsa({
   sequence,
   sampleOf,
 }: PlanArgs): TviewPlan {
-  const names = getReadNames(features, sampleOf)
+  const names = getReadNames(features, [REFERENCE])
   const parsed = features
     .map((f, i) => parseRead(f, names[i]!, sampleOf?.(i)))
     .sort(byStart)
@@ -353,10 +305,11 @@ export function planTviewMsa({
   // The reference is laid out as a row like any other, which is what lets it be
   // one of the alleles an array block squares up rather than a thing the block
   // has to be compared against afterwards.
-  const referenceName = sequence ? newickSafe(refName) : undefined
+  const referenceName = sequence ? REFERENCE : undefined
   const referenceRead: ReadLayout | undefined = sequence
     ? {
-        name: referenceName!,
+        name: REFERENCE,
+        sample: REFERENCE,
         start,
         refChars: sequence.toUpperCase(),
         insertions: new Map(),
@@ -400,20 +353,14 @@ export function planTviewMsa({
       best && alleleSpread(best) >= alleleSpread(array) ? best : array,
     undefined,
   )
-  const reads = subject
-    ? labelAndOrderByCopies(aligned, subject, referenceName)
-    : aligned
-
-  const insWidths = maxInsertionWidths(reads, ownedByArray)
+  const insWidths = maxInsertionWidths(aligned, ownedByArray)
   const layout = buildColumnLayout(start, end, insWidths, arrays)
 
   return {
-    reads,
+    reads: aligned,
     layout,
-    insertionWidths: [...insWidths.entries()].sort((a, b) => a[0] - b[0]),
-    arraySpans: arrays.map(a => [a.start, a.end, a.width]),
     region: { refName, start, end },
-    cellCount: reads.length * layout.totalColumns,
+    cellCount: aligned.length * layout.totalColumns,
     arrays,
     subject,
     referenceName,
@@ -424,15 +371,74 @@ export function planTviewMsa({
 }
 
 export function renderTviewMsa({ reads, layout }: TviewPlan) {
-  return reads.map(r => `>${rowLabel(r)}\n${renderRow(r, layout)}\n`).join('')
+  return reads.map(r => `>${r.name}\n${renderRow(r, layout)}\n`).join('')
+}
+
+/**
+ * What each row is, keyed by its name: the sample it came from and, where there
+ * is a subject array, the copies it carries there and their length in bp.
+ */
+export function planRowData({ reads, subject }: TviewPlan): RowDataInput {
+  return Object.fromEntries(
+    reads.map(({ name, sample }) => {
+      const copies = subject?.copiesByName.get(name)
+      const alleleBp = subject?.lengthByName.get(name)
+      return [
+        name,
+        {
+          ...(sample === undefined ? {} : { sample }),
+          ...(copies === undefined ? {} : { copies }),
+          ...(alleleBp === undefined ? {} : { alleleBp }),
+        },
+      ]
+    }),
+  )
+}
+
+/**
+ * A bracket over every run of columns that is not one reference base: each
+ * insertion site, and each array block. Columns are the file's, 1-based.
+ */
+export function planHighlights({
+  layout,
+  region,
+  referenceName,
+}: TviewPlan): Highlight[] {
+  const { start, offsets, insWidths, arrays } = layout
+  const n = (x: number) => x.toLocaleString('en-US')
+  const column = (pos: number) => offsets[pos - start]! + 1
+  const insertions = [...insWidths]
+    .filter(([, width]) => width > 0)
+    .map(([pos, width]) => ({
+      start: column(pos),
+      end: column(pos) + width - 1,
+      label: `+${width}bp after ${region.refName}:${n(pos)}`,
+    }))
+  const blocks = arrays.map(array => {
+    const copies = referenceName
+      ? array.copiesByName.get(referenceName)
+      : undefined
+    return {
+      start: column(array.start),
+      end: column(array.start) + array.width - 1,
+      label:
+        copies === undefined
+          ? `(${array.unit})n`
+          : `(${array.unit})x${copies} in the reference`,
+    }
+  })
+  return [...insertions, ...blocks]
+    .sort((a, b) => a.start - b.start)
+    .map((h): Highlight => ({ ...h, mark: 'bracket' }))
 }
 
 export function buildTviewMsa(args: PlanArgs) {
   const plan = planTviewMsa(args)
   return {
     msa: renderTviewMsa(plan),
-    insertionWidths: plan.insertionWidths,
-    arraySpans: plan.arraySpans,
+    rowData: planRowData(plan),
+    highlights: planHighlights(plan),
+    insertionWidths: [...plan.layout.insWidths].sort((a, b) => a[0] - b[0]),
     region: plan.region,
     arrays: plan.arrays,
     subject: plan.subject,

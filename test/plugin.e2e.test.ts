@@ -117,6 +117,17 @@ declare global {
   }
 }
 
+/** until the TView has rows to show */
+async function waitForTView(page: Page) {
+  await page.waitForFunction(
+    () =>
+      window.JBrowseSession.views.find(
+        (v: { type: string }) => v.type === 'TView',
+      )?.rows.length > 0,
+    { timeout: 60_000 },
+  )
+}
+
 async function screenshot(page: Page, name: string) {
   await page.screenshot({ path: `${SHOTS}/${name}.png` })
 }
@@ -231,12 +242,9 @@ describe('tview plugin in jbrowse-web', () => {
     await page.close()
   }, 180_000)
 
-  it('rebuilds the alignment when a restored session drops it', async () => {
+  it('rebuilds the same view when a session is restored', async () => {
     const { page, errors } = await openJBrowse()
     await waitForDisplay(page)
-    // react-msaview's DataModel strips data.msa from snapshots over 50kb,
-    // because it expects an msaFilehandle to reload from. tview has none, so
-    // the view has to rebuild the alignment off its persisted `init`.
     await page.evaluate(async () => {
       await window.JBrowseSession.views[0].navToLocString(
         'ctgA:1..2000',
@@ -253,36 +261,37 @@ describe('tview plugin in jbrowse-web', () => {
         .onClick()
     })
     await submitDialog(page)
-    await page.waitForFunction(
-      () =>
-        window.JBrowseSession.views.find(
-          (v: { type: string }) => v.type === 'TView',
-        )?.rows.length > 0,
-      { timeout: 60_000 },
-    )
+    await waitForTView(page)
 
     const built = await page.evaluate(() => {
       const v = window.JBrowseSession.views.find(
         (x: { type: string }) => x.type === 'TView',
       )
+      const snapshot = JSON.parse(JSON.stringify(v))
       return {
-        msaChars: v.data.msa.length,
-        rows: v.rows.length,
-        init: v.init,
-        msaSurvivesSnapshot:
-          JSON.parse(JSON.stringify(v)).data.msa !== undefined,
-        snapshot: JSON.parse(JSON.stringify(v)),
+        look: {
+          msaChars: v.data.msa.length,
+          rowData: v.data.treeMetadata,
+          rows: v.rows.length,
+          numColumns: v.numColumns,
+          rowTransform: v.rowTransform,
+          rowPanels: v.rowPanels,
+          highlights: v.highlights,
+          relativeTo: v.relativeTo,
+          residueColor: v.residueColor,
+          colWidth: v.colWidth,
+          rowHeight: v.rowHeight,
+        },
+        snapshot,
       }
     })
-    // the premise: this alignment is past the cap, so the snapshot loses it
-    expect(built.msaChars).toBeGreaterThan(50_000)
-    expect(built.msaSurvivesSnapshot).toBe(false)
-    // the blob is the whole durable statement of what the view is, so it is
-    // what has to survive a snapshot the alignment does not
-    expect(built.init.assembly).toBe('volvox')
-    // the end depends on how the view snapped bp to the pixel grid, as above
-    expect(built.init.loc).toMatch(/ctgA:1\.\./)
-    expect(built.init.tracks).toEqual([
+    // nothing derived is kept: the alignment and the row table are rebuilt
+    expect(built.snapshot.data).toEqual({})
+    expect(built.look.msaChars).toBeGreaterThan(0)
+    expect(built.snapshot.init.assembly).toBe('volvox')
+    // the end depends on how the view snapped bp to the pixel grid
+    expect(built.snapshot.init.loc).toMatch(/ctgA:1\.\./)
+    expect(built.snapshot.init.tracks).toEqual([
       { trackId: 'volvox_bam', sample: 'volvox-sorted.bam' },
     ])
 
@@ -299,35 +308,38 @@ describe('tview plugin in jbrowse-web', () => {
     }, built.snapshot)
     expect(rowsImmediately).toBe(0)
 
-    await page.waitForFunction(
-      () =>
-        window.JBrowseSession.views.find(
-          (v: { type: string }) => v.type === 'TView',
-        )?.rows.length > 0,
-      { timeout: 60_000 },
-    )
+    await waitForTView(page)
     const restored = await page.evaluate(() => {
       const v = window.JBrowseSession.views.find(
         (x: { type: string }) => x.type === 'TView',
       )
       return {
-        rows: v.rows.length,
-        msaChars: v.data.msa.length,
-        numColumns: v.numColumns,
+        look: {
+          msaChars: v.data.msa.length,
+          rowData: v.data.treeMetadata,
+          rows: v.rows.length,
+          numColumns: v.numColumns,
+          rowTransform: v.rowTransform,
+          rowPanels: v.rowPanels,
+          highlights: v.highlights,
+          relativeTo: v.relativeTo,
+          residueColor: v.residueColor,
+          colWidth: v.colWidth,
+          rowHeight: v.rowHeight,
+        },
         state: v.viewState.kind,
         colMapsTo: v.colToGenomeRegion(10),
       }
     })
     expect(restored.state).toBe('alignment')
-    expect(restored.rows).toBe(built.rows)
-    expect(restored.msaChars).toBe(built.msaChars)
-    expect(restored.numColumns).toBe(2000)
+    expect(restored.look).toEqual(built.look)
+    expect(restored.look.numColumns).toBe(2000)
     expect(restored.colMapsTo).toEqual({ refName: 'ctgA', start: 10, end: 11 })
     expect(errors.filter(e => /TView|tview/i.test(e))).toEqual([])
     await page.close()
   }, 180_000)
 
-  it('builds a tview from real BAM reads, expanding insertions', async () => {
+  it('builds a tview from real BAM reads, bracketing the insertion', async () => {
     const { page, errors } = await openJBrowse()
     await waitForDisplay(page)
     // 19 reads carry a 1bp insertion at ctgA:15163 while others span it without
@@ -347,19 +359,16 @@ describe('tview plugin in jbrowse-web', () => {
         .onClick()
     })
     await submitDialog(page)
-    await page.waitForFunction(
-      () =>
-        window.JBrowseSession.views.find(
-          (v: { type: string }) => v.type === 'TView',
-        )?.rows.length > 0,
-      { timeout: 60_000 },
-    )
+    await waitForTView(page)
 
     const tv = await page.evaluate(() => {
       const v = window.JBrowseSession.views.find(
         (x: { type: string }) => x.type === 'TView',
       )
-      const insCol = v.columnToRefPos.indexOf(15163)
+      const site = v.highlights.find(
+        (h: { label: string }) => h.label === '+1bp after ctgA:15,163',
+      )
+      const insCol = site.start - 1
       const counts: Record<string, number> = {}
       for (const r of v.rows) {
         const c = r[1][insCol]
@@ -369,7 +378,7 @@ describe('tview plugin in jbrowse-web', () => {
         rows: v.rows.length,
         distinctRowLengths: new Set(v.rows.map((r: string[]) => r[1]?.length))
           .size,
-        insertionWidths: v.insertionWidths,
+        site,
         countsAtInsertionColumn: counts,
         insertionColumnMapsTo: v.colToGenomeRegion(insCol),
       }
@@ -378,13 +387,14 @@ describe('tview plugin in jbrowse-web', () => {
     expect(tv.rows).toBeGreaterThan(0)
     // the invariant that makes tview readable
     expect(tv.distinctRowLengths).toBe(1)
-    expect(tv.insertionWidths).toContainEqual([15163, 1])
+    expect(tv.site).toMatchObject({ end: tv.site.start, mark: 'bracket' })
     // reads with the insertion show a base, one spanning read shows a gap
     const bases = Object.entries(tv.countsAtInsertionColumn)
       .filter(([c]) => /[ACGT]/.test(c))
       .reduce((a, [, n]) => a + n, 0)
     expect(bases).toBe(19)
     expect(tv.countsAtInsertionColumn['-'] ?? 0).toBeGreaterThan(0)
+    // an insertion column is read against the reference base after it
     expect(tv.insertionColumnMapsTo).toEqual({
       refName: 'ctgA',
       start: 15163,
@@ -395,83 +405,248 @@ describe('tview plugin in jbrowse-web', () => {
     await page.close()
   }, 180_000)
 
-  it('renders a TView and maps columns back to genome positions', async () => {
-    const { page, errors } = await openJBrowse()
-    const canvasesBefore = await page.evaluate(
-      () => document.querySelectorAll('canvas').length,
-    )
-    const state = await page.evaluate(() => {
-      const session = window.JBrowseSession
-      // r2/r3 pad a 3bp insertion that only r1 carries
-      const msa = ['>r1', 'AAAGGGCCC', '>r2', 'AAAT--CCC', '>r3', 'AAA---CCC']
-        .join('\n')
-        .concat('\n')
-      session.addView('TView', {
+  it('gives a view from a bare init the reference, the brackets and the DNA colours', async () => {
+    const { page, errors } = await openJBrowse([
+      {
         type: 'TView',
-        displayName: 'tview test',
-        colWidth: 20,
-        rowHeight: 20,
-        labelsAlignRight: true,
-        colorSchemeName: 'jbrowse_dna',
-        connectedViewId: session.views[0].id,
-        msaRegion: { refName: 'ctgA', start: 0, end: 6 },
-        insertionWidths: [[3, 3]],
-        data: { msa },
-      })
-      const v = session.views.find((x: { type: string }) => x.type === 'TView')
+        assembly: 'volvox',
+        loc: 'ctgA:15100..15250',
+        tracks: ['volvox_bam'],
+      },
+    ])
+    await waitForTView(page)
+    const state = await page.evaluate(() => {
+      const v = window.JBrowseSession.views.find(
+        (x: { type: string }) => x.type === 'TView',
+      )
       return {
-        rowNames: v.rows.map((r: string[]) => r[0]),
-        numColumns: v.numColumns,
-        columnToRefPos: v.columnToRefPos,
-        insertionColumnRegion: v.colToGenomeRegion(4),
-        connectedViewFound: !!v.connectedView,
+        firstRow: v.rowNames[0],
+        relativeTo: v.relativeTo,
+        tracks: v.turnedOnTracks.map(
+          (t: { model: { id: string } }) => t.model.id,
+        ),
+        brackets: v.highlights.filter(
+          (h: { mark?: string }) => h.mark === 'bracket',
+        ).length,
+        residueColor: v.residueColor,
+        colWidth: v.colWidth,
+        rowTransform: v.rowTransform,
+        bands: v.facetClades.map((c: { label?: string }) => c.label),
         // the view hamburger renders menuItems(); react-msaview's
         // extraViewMenuItems() has no caller, so an override there is invisible
         menuLabels: v.menuItems().map((i: { label: string }) => i.label),
       }
     })
-    expect(state.menuLabels).toContain('Zoom to base level on click?')
-    expect(state.rowNames).toEqual(['r1', 'r2', 'r3'])
-    expect(state.numColumns).toBe(9)
-    expect(state.columnToRefPos).toEqual([0, 1, 2, 3, 3, 3, 3, 4, 5])
-    // column 4 is an insertion column, so it resolves to the position it precedes
-    expect(state.insertionColumnRegion).toEqual({
-      refName: 'ctgA',
-      start: 3,
-      end: 4,
+    expect(state.firstRow).toBe('reference')
+    expect(state.relativeTo).toBe('reference')
+    expect(state.tracks).toContain('reference-row')
+    expect(state.tracks).toContain('highlight-brackets')
+    expect(state.brackets).toBeGreaterThan(0)
+    expect(state.residueColor).toEqual({
+      field: 'residue',
+      scale: { scheme: 'jbrowse_dna' },
     })
-    expect(state.connectedViewFound).toBe(true)
+    expect(state.colWidth).toBe(10)
+    expect(state.rowTransform).toEqual({
+      facet: { field: 'sample', sort: ['reference', 'volvox-sorted.bam'] },
+    })
+    expect(state.bands).toEqual(['reference', 'volvox-sorted.bam'])
+    expect(state.menuLabels).toContain('Zoom to base level on click?')
 
-    // the panel is lazy-loaded and react-msaview paints to canvas, so wait for
-    // its canvases to appear rather than looking for text in the DOM
-    await page.waitForFunction(
-      (before: number) => document.querySelectorAll('canvas').length > before,
-      { timeout: 60_000 },
-      canvasesBefore,
-    )
     // the jbrowse_dna scheme colors A/C/G/T differently, so a painted alignment
     // shows several distinct colors; a blank canvas would show one
-    const distinctColors = await page.evaluate(() => {
-      const canvases = [...document.querySelectorAll('canvas')]
-      return Math.max(
-        ...canvases.map(c => {
-          const ctx = c.getContext('2d')
-          if (!ctx || !c.width || !c.height) {
-            return 0
-          }
+    await page.waitForFunction(
+      () => document.querySelectorAll('canvas').length > 0,
+      { timeout: 60_000 },
+    )
+    const colors = await page.evaluate(() => {
+      const seen = new Set<string>()
+      for (const c of document.querySelectorAll('canvas')) {
+        const ctx = c.getContext('2d')
+        if (ctx && c.width && c.height) {
           const { data } = ctx.getImageData(0, 0, c.width, c.height)
-          const seen = new Set<string>()
           for (let i = 0; i < data.length; i += 4) {
-            seen.add(`${data[i]},${data[i + 1]},${data[i + 2]},${data[i + 3]}`)
+            seen.add(`${data[i]},${data[i + 1]},${data[i + 2]}`)
           }
-          return seen.size
-        }),
-      )
+        }
+      }
+      return seen.size
     })
-    expect(distinctColors).toBeGreaterThan(3)
-
+    expect(colors).toBeGreaterThan(3)
     expect(errors.filter(e => /TView|tview/i.test(e))).toEqual([])
-    await screenshot(page, '03-tview')
+    await screenshot(page, '03-bare-init')
+    await page.close()
+  }, 180_000)
+
+  it('ties columns and genome positions together both ways', async () => {
+    const { page, errors } = await openJBrowse()
+    await waitForDisplay(page)
+    await page.evaluate(() => {
+      const session = window.JBrowseSession
+      session.addView('TView', {
+        type: 'TView',
+        init: {
+          assembly: 'volvox',
+          loc: 'ctgA:15100..15250',
+          tracks: ['volvox_bam'],
+        },
+        connectedViewId: session.views[0].id,
+      })
+    })
+    await waitForTView(page)
+
+    // hovering the alignment's insertion column bands the base after it
+    const hovered = await page.evaluate(() => {
+      const v = window.JBrowseSession.views.find(
+        (x: { type: string }) => x.type === 'TView',
+      )
+      const site = v.highlights.find(
+        (h: { label: string }) => h.label === '+1bp after ctgA:15,163',
+      )
+      v.setMousePos(site.start - 1, 1)
+      return v.connectedHighlights
+    })
+    expect(hovered).toEqual([{ refName: 'ctgA', start: 15163, end: 15164 }])
+    await page.waitForFunction(
+      () =>
+        [...document.querySelectorAll('div')].some(
+          d => getComputedStyle(d).backgroundColor === 'rgba(255, 255, 0, 0.2)',
+        ),
+      { timeout: 30_000 },
+    )
+
+    // clicking a column centers the genome view on its base
+    const centered = await page.evaluate(async () => {
+      const session = window.JBrowseSession
+      const lgv = session.views[0]
+      const v = session.views.find((x: { type: string }) => x.type === 'TView')
+      v.setMousePos(undefined)
+      const target = v.colToGenomeRegion(40)
+      v.setMouseClickPos(40, 1)
+      await new Promise(r => setTimeout(r, 300))
+      return { target, center: lgv.pxToBp(lgv.width / 2) }
+    })
+    expect(centered.center.refName).toBe('ctgA')
+    expect(
+      Math.abs(centered.center.coord - 1 - centered.target.start),
+    ).toBeLessThanOrEqual(1)
+
+    // hovering a base of the genome view highlights its column
+    const at = await page.evaluate(() => {
+      const lgv = window.JBrowseSession.views[0]
+      const el = document.querySelector(
+        `[data-testid="linear-genome-view-${lgv.id}"] [data-testid="tracksContainer"]`,
+      )!
+      const box = el.getBoundingClientRect()
+      const container = document
+        .querySelector(`[data-testid="linear-genome-view-${lgv.id}"]`)!
+        .getBoundingClientRect()
+      const px = lgv.bpToPx({ refName: 'ctgA', coord: 15180.5 })
+      return {
+        x: container.left + px.offsetPx - lgv.offsetPx,
+        y: box.top + box.height / 2,
+      }
+    })
+    await page.mouse.move(at.x, at.y)
+    await page.waitForFunction(
+      () =>
+        window.JBrowseSession.views.find(
+          (x: { type: string }) => x.type === 'TView',
+        ).transientHighlights['genome-hover'] !== undefined,
+      { timeout: 10_000 },
+    )
+    const genomeHover = await page.evaluate(() => {
+      const v = window.JBrowseSession.views.find(
+        (x: { type: string }) => x.type === 'TView',
+      )
+      const band = v.resolvedHighlights.find(
+        (h: { transient: boolean }) => h.transient,
+      )
+      return {
+        hovered: window.JBrowseSession.hovered.hoverPosition,
+        highlight: v.transientHighlights['genome-hover'],
+        column: band.startCol,
+        columnMapsTo: v.colToGenomeRegion(band.startCol),
+        mouseCol: v.mouseCol,
+      }
+    })
+    const coord = Math.floor(genomeHover.hovered.coord)
+    expect(genomeHover.highlight).toEqual([
+      { row: 'reference', start: coord - 15099, end: coord - 15099 },
+    ])
+    expect(genomeHover.columnMapsTo).toEqual({
+      refName: 'ctgA',
+      start: coord - 1,
+      end: coord,
+    })
+    // the alignment's own cursor stays put, or it would echo back
+    expect(genomeHover.mouseCol).toBeUndefined()
+
+    await page.mouse.move(5, 5)
+    await page.waitForFunction(
+      () =>
+        window.JBrowseSession.views.find(
+          (x: { type: string }) => x.type === 'TView',
+        ).transientHighlights['genome-hover'] === undefined,
+      { timeout: 10_000 },
+    )
+    expect(errors.filter(e => /TView|tview/i.test(e))).toEqual([])
+    await page.close()
+  }, 180_000)
+
+  it('bands two samples and orders a tandem array by copies', async () => {
+    const { page, errors } = await openJBrowse([
+      {
+        type: 'TView',
+        assembly: 'volvox',
+        loc: 'ctgA:7560..7650',
+        tracks: [
+          'volvox_bam',
+          { trackId: 'volvox_bam_again', sample: 'HG002 (again)' },
+        ],
+      },
+    ])
+    await waitForTView(page)
+    const state = await page.evaluate(() => {
+      const v = window.JBrowseSession.views.find(
+        (x: { type: string }) => x.type === 'TView',
+      )
+      return {
+        bands: v.facetClades.map((c: { label?: string }) => c.label),
+        rowTransform: v.rowTransform,
+        panels: v.rowPanels.map((p: { kind: string }) => p.kind),
+        rows: v.rowNames.length,
+        uniqueRows: new Set(v.rowNames).size,
+        arrayBracket: v.highlights.find((h: { label: string }) =>
+          h.label.endsWith(' in the reference'),
+        )?.label,
+      }
+    })
+    expect(state.bands).toEqual([
+      'reference',
+      'volvox-sorted.bam',
+      'HG002 (again)',
+    ])
+    expect(state.rowTransform.sort).toEqual([
+      { field: 'copies', order: 'descending' },
+    ])
+    expect(state.panels).toEqual(['bar', 'text'])
+    // the same reads arrive from both tracks, and every one keeps its row
+    expect(state.uniqueRows).toBe(state.rows)
+    expect(state.arrayBracket).toMatch(/^\(AATG\)x\d+ in the reference$/)
+    expect(errors.filter(e => /TView|tview/i.test(e))).toEqual([])
+
+    // tall enough for both bands, so the figure shows what is being tested
+    const height = await page.evaluate(() => {
+      const v = window.JBrowseSession.views.find(
+        (x: { type: string }) => x.type === 'TView',
+      )
+      v.setHeight(v.rowNames.length * v.rowHeight + 300)
+      return v.height
+    })
+    await page.setViewport({ width: 1400, height: height + 200 })
+    await new Promise(r => setTimeout(r, 500))
+    await screenshot(page, '08-two-samples-array')
     await page.close()
   }, 180_000)
 
@@ -535,13 +710,7 @@ describe('tview plugin in jbrowse-web', () => {
         tracks: ['volvox_bam'],
       },
     ])
-    await page.waitForFunction(
-      () =>
-        window.JBrowseSession.views.find(
-          (v: { type: string }) => v.type === 'TView',
-        )?.rows.length > 0,
-      { timeout: 60_000 },
-    )
+    await waitForTView(page)
     const before = await page.evaluate(() => {
       const session = window.JBrowseSession
       const v = session.views.find((x: { type: string }) => x.type === 'TView')
@@ -556,12 +725,12 @@ describe('tview plugin in jbrowse-web', () => {
       }
       return {
         rows: v.rows.map((r: string[]) => [r[0], r[1]?.length]),
-        msaRegion: v.msaRegion,
+        loadedRegion: v.loadedRegion,
         state: v.viewState.kind,
       }
     })
-    expect(before.rows).toEqual([['ctgB', 79]])
-    expect(before.msaRegion).toEqual({
+    expect(before.rows).toEqual([['reference', 79]])
+    expect(before.loadedRegion).toEqual({
       refName: 'ctgB',
       start: 6000,
       end: 6079,

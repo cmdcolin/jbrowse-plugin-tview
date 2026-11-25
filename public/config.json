@@ -55,6 +55,24 @@
           }
         }
       }
+    },
+    {
+      "type": "AlignmentsTrack",
+      "trackId": "volvox_bam_again",
+      "name": "volvox-sorted.bam again",
+      "category": ["Integration test"],
+      "assemblyNames": ["volvox"],
+      "adapter": {
+        "type": "BamAdapter",
+        "bamLocation": {
+          "uri": "volvox-sorted-altname.bam"
+        },
+        "index": {
+          "location": {
+            "uri": "volvox-sorted-altname.bam.bai"
+          }
+        }
+      }
     }
   ],
   "defaultSession": {

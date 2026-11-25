@@ -24,9 +24,6 @@ import type { TviewInit } from '../../TViewPanel/init'
 import type { AbstractTrackModel } from '@jbrowse/core/util'
 import type { LinearGenomeViewModel } from '@jbrowse/plugin-linear-genome-view'
 
-// how much of the alignment the default column width aims to put on screen
-const FIT_WIDTH_PX = 3000
-
 function trackLabel(track: AbstractTrackModel) {
   return getConf(track, 'name') || getConf(track, 'trackId')
 }
@@ -85,15 +82,6 @@ export default function LaunchTViewDialog({
 
   const regionError = init ? initRegion(session, init)?.error : undefined
   const { data, error, isLoading } = useTviewMsa({ session, init })
-
-  // 10 is comfortable for an ordinary pileup, but an unrolled tandem array runs
-  // to hundreds of columns and at 10 almost none of it is on screen at once.
-  // Fits the alignment to roughly two screen-widths; a no-op for the narrow
-  // regions that already fitted.
-  const totalColumns = data?.columnCount ?? 0
-  const colWidth = totalColumns
-    ? Math.max(1, Math.min(10, Math.floor(FIT_WIDTH_PX / totalColumns)))
-    : 10
 
   return (
     <Dialog
@@ -175,11 +163,6 @@ export default function LaunchTViewDialog({
                 type: 'TView',
                 displayName: init.loc,
                 init,
-                colWidth,
-                rowHeight: 12,
-                labelsAlignRight: true,
-                colorSchemeName: 'jbrowse_dna',
-                drawTree: init.tracks.length > 1,
                 connectedViewId: view.id,
               })
             }

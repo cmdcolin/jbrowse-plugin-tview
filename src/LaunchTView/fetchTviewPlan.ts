@@ -13,8 +13,7 @@ export interface FetchRegion {
 /** one track's worth of rows, and the name they are grouped under */
 export interface TviewSource {
   adapterConfig: Record<string, unknown>
-  /** the label rows from this file carry; omitted when there is only one */
-  sample?: string
+  sample: string
   trackId: string
 }
 

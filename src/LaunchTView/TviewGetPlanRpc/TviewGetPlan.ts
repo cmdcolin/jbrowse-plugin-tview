@@ -4,8 +4,12 @@ import { getFeatureAdapterOrThrow } from '@jbrowse/core/data_adapters/getFeature
 import { RpcMethodType } from '@jbrowse/core/pluggableElementTypes'
 import { assembleLocString } from '@jbrowse/core/util'
 
-import { buildSampleTree } from '../sampleTree'
-import { planTviewMsa, renderTviewMsa } from '../tview'
+import {
+  planHighlights,
+  planRowData,
+  planTviewMsa,
+  renderTviewMsa,
+} from '../tview'
 
 import type { AlignmentFeature } from '../readLayout'
 import type PluginManager from '@jbrowse/core/PluginManager'
@@ -14,11 +18,12 @@ import type {
   RpcExecuteArgs,
 } from '@jbrowse/core/rpc/RpcRegistry'
 import type { Region } from '@jbrowse/core/util'
+import type { Highlight, RowDataInput } from 'react-msaview'
 
 /** one BAM/CRAM to draw rows from, and the name its rows are grouped under */
 export interface TviewSourceArgs {
   adapterConfig: Record<string, unknown>
-  sample?: string
+  sample: string
   /**
    * what this file calls the region's sequence. Filled in on the client, where
    * the assembly's aliases live: two files over one assembly routinely spell it
@@ -52,13 +57,13 @@ export interface TviewArrayReport {
 
 export interface TviewPlanResult {
   msa: string
-  /** Newick grouping rows by sample; absent unless several were loaded */
-  tree?: string
+  /** per row name: its sample, and its copies and allele length at the subject */
+  rowData: RowDataInput
+  /** a bracket over each insertion site and each array block */
+  highlights: Highlight[]
   rowCount: number
   columnCount: number
   cellCount: number
-  insertionWidths: [number, number][]
-  arraySpans: [number, number, number][]
   region: { refName: string; start: number; end: number }
   arrays: TviewArrayReport[]
   subjectIndex?: number
@@ -185,7 +190,7 @@ export default class TviewGetPlan extends RpcMethodType<'TviewGetPlan'> {
       fetchReference(pluginManager, args),
     ])
     const features: AlignmentFeature[] = []
-    const sampleByIndex: (string | undefined)[] = []
+    const sampleByIndex: string[] = []
     for (const [i, feats] of perSource.entries()) {
       for (const feature of feats) {
         if (feature.get('seq')) {
@@ -208,8 +213,8 @@ export default class TviewGetPlan extends RpcMethodType<'TviewGetPlan'> {
       rowCount: plan.reads.length,
       columnCount: plan.layout.totalColumns,
       cellCount: plan.cellCount,
-      insertionWidths: plan.insertionWidths,
-      arraySpans: plan.arraySpans,
+      rowData: planRowData(plan),
+      highlights: planHighlights(plan),
       region: plan.region,
       arrays: plan.arrays.map(a => ({
         start: a.start,
@@ -231,10 +236,6 @@ export default class TviewGetPlan extends RpcMethodType<'TviewGetPlan'> {
     // columns, so the size check happens before it rather than after
     return plan.cellCount > maxCells
       ? { ...shared, msa: '', tooLarge: true }
-      : {
-          ...shared,
-          msa: renderTviewMsa(plan),
-          tree: buildSampleTree(plan.reads),
-        }
+      : { ...shared, msa: renderTviewMsa(plan) }
   }
 }

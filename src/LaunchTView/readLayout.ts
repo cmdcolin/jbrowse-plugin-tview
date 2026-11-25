@@ -1,5 +1,3 @@
-import { newickSafe } from './sampleTree'
-
 /** the subset of an @jbrowse/core Feature that the layout reads */
 export interface AlignmentFeature {
   get: (key: string) => any
@@ -20,23 +18,12 @@ export const ABSENT = '.'
 
 export interface ReadLayout {
   /**
-   * Identity. Every per-row lookup is keyed by this — the array blocks, the
-   * tree — so it is fixed once, here, and nothing downstream rewrites it.
+   * Identity, and the row's name in the alignment. Every per-row lookup is
+   * keyed by this — the array blocks, the row table — so it is fixed once,
+   * here, and nothing downstream rewrites it.
    */
   name: string
-  /**
-   * What the row is called on screen, when that is not just its name. Kept
-   * apart from `name` because the copy-number label is added after the array
-   * blocks are built and keyed: renaming in place instead left every labelled
-   * row unable to find its own block, and the block fell back to gaps — a row
-   * that silently loses its sequence while keeping its label.
-   */
-  label?: string
-  /**
-   * The sample the row belongs to, when several were loaded at once. Already
-   * Newick-safe, and the same string the row's own name is prefixed with, so
-   * the clade label and its leaves agree.
-   */
+  /** the sample the row belongs to, as the caller named it */
   sample?: string
   start: number
   /** one char per reference position consumed: the aligned base, or a gap */
@@ -86,11 +73,9 @@ export function parseRead(
     }
     // H and P consume neither the read sequence nor the reference
   }
-  // sanitized here, the same way getReadNames sanitizes the prefix it builds
-  // from it, so the clade label and the leaves inside it are one string
   return {
     name,
-    sample: sample === undefined ? undefined : newickSafe(sample),
+    sample,
     start,
     refChars,
     insertions,
@@ -120,26 +105,23 @@ function mateSuffix(flags: number | undefined) {
 }
 
 /**
- * MSA rows are keyed by name, so mates and duplicate names need disambiguating.
- * With several samples loaded at once the same read name can also arrive twice
- * from two files, which the sample prefix separates before the counter has to.
- *
- * The name is made Newick-safe here rather than where the tree is written,
- * because the tree names the same rows the FASTA does and the two have to agree
- * exactly. '|' separates the parts because ':' opens a branch length.
+ * MSA rows are keyed by name, and a FASTA defline names its row by the first
+ * whitespace-delimited word, dropping any later row whose word repeats. So a
+ * name loses its whitespace, mates are told apart by flag, and whatever still
+ * collides (the same read in two files, or a name in `reserved`) is numbered.
  */
 export function getReadNames(
   features: AlignmentFeature[],
-  sampleOf?: (index: number) => string | undefined,
+  reserved: string[] = [],
 ) {
-  const counts = new Map<string, number>()
-  return features.map((f, i) => {
-    const sample = sampleOf?.(i)
-    const prefix = sample ? `${newickSafe(sample)}|` : ''
-    const name = newickSafe(String(f.get('name')))
-    const base = `${prefix}${name}${mateSuffix(f.get('flags'))}`
-    const n = (counts.get(base) ?? 0) + 1
-    counts.set(base, n)
-    return n === 1 ? base : `${base}_${n}`
+  const taken = new Set(reserved)
+  return features.map(f => {
+    const base = `${String(f.get('name')).replaceAll(/\s+/g, '_')}${mateSuffix(f.get('flags'))}`
+    let name = base
+    for (let n = 2; taken.has(name); n++) {
+      name = `${base}_${n}`
+    }
+    taken.add(name)
+    return name
   })
 }

@@ -4,16 +4,24 @@ import { addDisposer, isAlive, types } from '@jbrowse/mobx-state-tree'
 import { autorun } from 'mobx'
 import { MSAModelF } from 'react-msaview'
 
-import { buildColumnToRefPos, renderedColToMsaCol } from './coords'
+import { hoverPosition, lowerBound } from './genome'
 import { initRegion, initSources, missingTrackIds } from './init'
 import { fetchTviewPlan } from '../LaunchTView/fetchTviewPlan'
 import { MAX_CELLS } from '../LaunchTView/limits'
+import { REFERENCE } from '../LaunchTView/tview'
 
 import type { TviewInit } from './init'
+import type { TviewPlanResult } from '../LaunchTView/TviewGetPlanRpc/TviewGetPlan'
 import type { FetchRegion, TviewSource } from '../LaunchTView/fetchTviewPlan'
 import type { MenuItem } from '@jbrowse/core/ui'
 import type { Instance } from '@jbrowse/mobx-state-tree'
 import type { LinearGenomeViewModel } from '@jbrowse/plugin-linear-genome-view'
+import type {
+  Highlight,
+  ResidueColor,
+  RowPanelSpec,
+  RowTransform,
+} from 'react-msaview'
 
 // re-exported so the inferred (composed) state-model type can name mobx's
 // IKeyValueMap when emitting declarations (avoids TS2883 portability error)
@@ -43,17 +51,69 @@ export type TViewState =
   | { kind: 'notice'; message: string }
   | { kind: 'error'; error: unknown; retry: boolean }
 
+// how much of the alignment the fitted column width aims to put on screen
+const FIT_WIDTH_PX = 3000
+
+const GENOME_HOVER = 'genome-hover'
+
+const ROW_HEIGHT = 12
+
+const DNA_COLORS: ResidueColor = {
+  field: 'residue',
+  scale: { scheme: 'jbrowse_dna' },
+}
+
+const COPY_PANELS: RowPanelSpec[] = [
+  {
+    kind: 'bar',
+    header: 'copies',
+    width: 60,
+    encoding: { x: { field: 'copies', scale: { domainMin: 0 } } },
+  },
+  {
+    kind: 'text',
+    header: 'n',
+    width: 28,
+    encoding: { text: { field: 'copies' } },
+  },
+]
+
+function rowTransform(samples: string[], bySubject: boolean): RowTransform {
+  return {
+    facet: { field: 'sample', sort: [REFERENCE, ...samples] },
+    ...(bySubject ? { sort: [{ field: 'copies', order: 'descending' }] } : {}),
+  }
+}
+
+/**
+ * 10px is comfortable for an ordinary pileup, but an unrolled tandem array runs
+ * to hundreds of columns and at 10 almost none of it is on screen at once, so
+ * the width shrinks to fit roughly two screen-widths.
+ */
+function fittedColWidth(columns: number) {
+  return Math.max(1, Math.min(10, Math.floor(FIT_WIDTH_PX / columns)))
+}
+
+const highlightKey = (h: Highlight) => JSON.stringify(h)
+
 /**
  * #stateModel TViewPlugin
  * extends
  * - MSAModel from https://github.com/GMOD/react-msaview
  */
 export default function stateModelFactory() {
+  const msaModel = MSAModelF({ maxInlineSnapshotBytes: 0 })
+  const msaDefaults = {
+    colWidth: msaModel.properties.colWidth.getDefaultInstanceOrSnapshot(),
+    rowHeight: msaModel.properties.rowHeight.getDefaultInstanceOrSnapshot(),
+    labelsAlignRight:
+      msaModel.properties.labelsAlignRight.getDefaultInstanceOrSnapshot(),
+  }
   return types
     .compose(
       'TView',
       BaseViewModel,
-      MSAModelF(),
+      msaModel,
       types.model({
         type: types.literal('TView'),
         /**
@@ -70,35 +130,23 @@ export default function stateModelFactory() {
         init: types.frozen<TviewInit | undefined>(),
         /**
          * #property
-         * reference region the alignment columns span, filled in by the load
-         */
-        msaRegion: types.frozen<IRegion | undefined>(),
-        /**
-         * #property
-         * [refPos, width] for every position where some read has an insertion
-         */
-        insertionWidths: types.frozen<[number, number][]>([]),
-        /**
-         * #property
-         * [start, end, columns] for every tandem array laid out per copy
-         */
-        arraySpans: types.frozen<[number, number, number][]>([]),
-        /**
-         * #property
          */
         zoomToBaseLevel: types.optional(types.boolean, false),
       }),
     )
-    .views(self => ({
+    .volatile(() => ({
       /**
-       * #getter
+       * #volatile
+       * the reference region the loaded alignment spans
        */
-      get columnToRefPos() {
-        const { msaRegion, insertionWidths, arraySpans } = self
-        return msaRegion
-          ? buildColumnToRefPos({ ...msaRegion, insertionWidths, arraySpans })
-          : undefined
-      },
+      loadedRegion: undefined as IRegion | undefined,
+      /**
+       * #volatile
+       * the highlights the last load added, which the next one replaces
+       */
+      loadedHighlights: [] as Highlight[],
+    }))
+    .views(self => ({
       /**
        * #getter
        */
@@ -129,16 +177,35 @@ export default function stateModelFactory() {
       get initKey() {
         return self.init ? JSON.stringify(self.init) : undefined
       },
+      /**
+       * #getter
+       * overrides base: a view with an `init` rebuilds what its snapshot drops
+       */
+      get hostRestoresData() {
+        return self.init !== undefined
+      },
     }))
     .views(self => ({
       /**
        * #method
+       * the reference base a visible column is read against: the reference
+       * row's residue there, or the next one where the reference has a gap
        */
       colToGenomeRegion(col: number): IRegion | undefined {
-        const { columnToRefPos, msaRegion, blanks } = self
-        const pos = columnToRefPos?.[renderedColToMsaCol(blanks, col)]
-        return msaRegion && pos !== undefined
-          ? { refName: msaRegion.refName, start: pos, end: pos + 1 }
+        const { loadedRegion } = self
+        const index = self.seqPosIndex(REFERENCE)
+        const residue = index
+          ? lowerBound(index, self.visibleColToGlobalCol(col))
+          : undefined
+        return loadedRegion &&
+          index &&
+          residue !== undefined &&
+          residue < index.length
+          ? {
+              refName: loadedRegion.refName,
+              start: loadedRegion.start + residue,
+              end: loadedRegion.start + residue + 1,
+            }
           : undefined
       },
     }))
@@ -253,19 +320,40 @@ export default function stateModelFactory() {
       },
       /**
        * #action
+       * shows a built alignment: its rows, how they are grouped, ordered and
+       * marked, and the defaults a view that has not set its own takes
        */
-      setMsaData(result: {
-        msa: string
-        tree?: string
-        insertionWidths: [number, number][]
-        arraySpans: [number, number, number][]
-        region: IRegion
-      }) {
-        self.msaRegion = result.region
-        self.insertionWidths = result.insertionWidths
-        self.arraySpans = result.arraySpans
-        self.data.setMSA(result.msa)
-        self.data.setTree(result.tree)
+      setAlignment(result: TviewPlanResult) {
+        const bySubject = result.subjectIndex !== undefined
+        const replaced = new Set(
+          [...self.loadedHighlights, ...result.highlights].map(highlightKey),
+        )
+        self.loadedRegion = result.region
+        self.loadedHighlights = result.highlights
+        self.setMSA(result.msa)
+        self.data.setTree(undefined)
+        self.setRowData(result.rowData)
+        self.setRowTransform(rowTransform(result.samples, bySubject))
+        self.setRowPanels(bySubject ? COPY_PANELS : [])
+        self.setHighlights([
+          ...self.highlights.filter(h => !replaced.has(highlightKey(h))),
+          ...result.highlights,
+        ])
+        if (self.relativeTo === undefined) {
+          self.drawRelativeTo(REFERENCE)
+        }
+        if (Object.keys(self.residueColor).length === 0) {
+          self.setResidueColor(DNA_COLORS)
+        }
+        if (self.colWidth === msaDefaults.colWidth) {
+          self.setColWidth(fittedColWidth(result.columnCount))
+        }
+        if (self.rowHeight === msaDefaults.rowHeight) {
+          self.setRowHeight(ROW_HEIGHT)
+        }
+        if (self.labelsAlignRight === msaDefaults.labelsAlignRight) {
+          self.setLabelsAlignRight(true)
+        }
       },
       /**
        * #action
@@ -320,7 +408,7 @@ export default function stateModelFactory() {
                   error: `The alignment is ${result.cellCount.toLocaleString('en-US')} cells, above the ${MAX_CELLS.toLocaleString('en-US')} limit`,
                 })
               } else {
-                self.setMsaData(result)
+                self.setAlignment(result)
                 self.setLoadState({ key, status: 'loaded' })
               }
             }
@@ -339,10 +427,6 @@ export default function stateModelFactory() {
     .actions(self => ({
       afterCreate() {
         self.setImportForm(false)
-        const { initKey } = self
-        if (initKey && self.data.msa) {
-          self.setLoadState({ key: initKey, status: 'loaded' })
-        }
         addDisposer(
           self,
           autorun(() => {
@@ -354,6 +438,33 @@ export default function stateModelFactory() {
               initSources
             ) {
               void self.load(initKey, initRegion.region, initSources)
+            }
+          }),
+        )
+        addDisposer(
+          self,
+          autorun(() => {
+            const { loadedRegion, connectedView } = self
+            const hover = hoverPosition(getSession(self).hovered)
+            const inConnectedView =
+              !!connectedView &&
+              (hover?.viewId === undefined || hover.viewId === connectedView.id)
+            const residue =
+              inConnectedView &&
+              loadedRegion &&
+              hover?.refName === loadedRegion.refName
+                ? hover.coord - loadedRegion.start
+                : 0
+            if (
+              loadedRegion &&
+              residue >= 1 &&
+              residue <= loadedRegion.end - loadedRegion.start
+            ) {
+              self.applyHighlight(GENOME_HOVER, [
+                { row: REFERENCE, start: residue, end: residue },
+              ])
+            } else {
+              self.clearHighlight(GENOME_HOVER)
             }
           }),
         )

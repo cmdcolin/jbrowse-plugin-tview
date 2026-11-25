@@ -28,10 +28,9 @@ export type TviewTrackInit = string | { trackId: string; sample?: string }
  *   launch dialog does not build the view — it names it.
  *
  * Unlike LinearGenomeView's, this init is **kept, not cleared**. What it
- * resolves to is a multiple alignment held as one string, which react-msaview
- * drops from snapshots past 50kb and has no file to reload from; the blob is
- * both smaller than what it produces and the only durable statement of what the
- * view is.
+ * resolves to — the alignment and its row table — is kept out of snapshots and
+ * rebuilt from it on restore, so the blob is the only durable statement of what
+ * the view is.
  */
 export interface TviewInit {
   /** assembly the locus and the tracks belong to */
@@ -129,7 +128,7 @@ export function initRegion(session: AbstractSessionModel, init: TviewInit) {
  * — what the init asked for, what the track config is called, or the trackId —
  * is settled once, at the point where all three are in hand, so nothing
  * downstream has to ask again. `||` rather than `??` on purpose: a track
- * configured with `name: ''` should fall through to its id, not label a clade
+ * configured with `name: ''` should fall through to its id, not label a band
  * with an empty string.
  */
 interface ResolvedTrack {
@@ -162,9 +161,6 @@ function resolveTrack(
  * The sources `init.tracks` names, or undefined until every one of them
  * resolves. All or nothing: a partial set comes back with samples missing and
  * nothing on screen says any were.
- *
- * Whether the names are *used* is decided here and only here — one file's rows
- * need no prefix, and would gain a tree of one clade drawn beside a list.
  */
 export function initSources(
   session: AbstractSessionModel,
@@ -172,15 +168,7 @@ export function initSources(
 ): TviewSource[] | undefined {
   const resolved = init.tracks.map(entry => resolveTrack(session, entry))
   const found = resolved.filter(t => t !== undefined)
-  if (found.length !== init.tracks.length) {
-    return undefined
-  }
-  const labelled = found.length > 1
-  return found.map(track => ({
-    trackId: track.trackId,
-    adapterConfig: track.adapterConfig,
-    sample: labelled ? track.sample : undefined,
-  }))
+  return found.length === init.tracks.length ? found : undefined
 }
 
 /** the trackIds `init.tracks` names that this session has no track for */

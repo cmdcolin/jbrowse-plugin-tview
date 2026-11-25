@@ -70,8 +70,8 @@ tutorial deliberately: the biology is interesting but "the interesting alleles
 are non-reference and an expansion is hard to read in a linear genome view.
 Revisit only if there is a rendering answer first (a pangenome or graph
 projection, or a **per-allele length encoding**), not as a data-loading
-walkthrough." The unit-per-block layout with `n=` labels is that per-allele
-length encoding, so this plugin is what unparks it.
+walkthrough." The unit-per-block layout, with each row's copy count beside it,
+is that per-allele length encoding, so this plugin is what unparks it.
 
 Two blockers, both outside this repo, and they fix the order of the work:
 
