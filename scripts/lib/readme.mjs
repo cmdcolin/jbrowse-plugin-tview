@@ -1,5 +1,5 @@
 /**
- * Rewriting the generated blocks of README.md in place.
+ * Rewriting the generated blocks of the README and docs in place.
  *
  * Shared because there are two generators and they run on different schedules:
  * the measured tables need live GIAB data and so are checked weekly, while the
@@ -16,7 +16,7 @@ export function writeBlocks(markdown, blocks) {
       'g',
     )
     if (!re.test(ret)) {
-      throw new Error(`README.md has no <!-- ${name} --> block`)
+      throw new Error(`no <!-- ${name} --> block to write`)
     }
     // blank lines around the body because that is where prettier puts them,
     // and a block prettier would reformat is a block --check can never pass

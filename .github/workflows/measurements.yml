@@ -1,11 +1,11 @@
-# Checks that the numbers written into README.md are still what the data
+# Checks that the numbers written into docs/tandem-repeats.md are still what the data
 # measures.
 #
 # Not part of Integration and not part of `preversion`: it fetches tens of
 # megabytes from GIAB and the UCSC API, so it fails on anything from an FTP
 # outage to a UCSC deprecation, and neither is a reason a commit cannot land or
 # a release cannot go out. Weekly, and on demand, is enough to notice that the
-# README has stopped describing the data — which is the only failure it is
+# doc has stopped describing the data — which is the only failure it is
 # looking for, since the measurement itself is pinned by the unit tests.
 name: Measurements
 
@@ -15,7 +15,7 @@ on:
     - cron: '17 4 * * 1'
   workflow_dispatch:
   push:
-    # the sources of the numbers: if one of these changed, the README may have
+    # the sources of the numbers: if one of these changed, the doc may have
     # to as well, and this is the only thing that can say so
     paths:
       - 'src/LaunchTView/**'
@@ -25,7 +25,7 @@ on:
 
 jobs:
   readme:
-    name: README matches the measurements
+    name: docs match the measurements
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -38,5 +38,5 @@ jobs:
           node-version: 24.x
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Check README against live GIAB data
+      - name: Check docs against live GIAB data
         run: pnpm readme:repeats --check

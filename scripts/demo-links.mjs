@@ -1,6 +1,6 @@
-// Writes the hosted demo config and the live-demo links in README.md.
+// Writes the hosted demo config and the live-demo links in the docs.
 //
-//   pnpm demos            regenerate public/demo.json and the README block
+//   pnpm demos            regenerate public/demo.json and the link blocks
 //   pnpm demos --check    fail if either is not what it would write
 //
 // A demo link opens the same session spec the figure beside it was taken from,
@@ -16,7 +16,13 @@ import { sessionSpec } from './lib/capture.mjs'
 import { FIGURES } from './lib/figures.mjs'
 import { table, writeBlocks } from './lib/readme.mjs'
 
-const README = 'README.md'
+const DEMOS = 'docs/demos.md'
+/** the pages that link a demo by its `[tview-demo-…]` reference */
+const LINKING_PAGES = [
+  'README.md',
+  'docs/insertions.md',
+  'docs/tandem-repeats.md',
+]
 const DEV_CONFIG = 'public/repeats.json'
 const HOSTED_CONFIG = 'public/demo.json'
 const INDEX = 'public/demo-index.html'
@@ -26,7 +32,7 @@ const REPO = 'https://github.com/cmdcolin/jbrowse-plugin-tview'
  * A JBrowse that can run this plugin.
  *
  * The nightly rather than a release: the plugin needs a JBrowse v5 host, and
- * no v5 has been released yet — the same requirement the README states,
+ * no v5 has been released yet — the same requirement docs/usage.md states,
  * pointed at something clickable.
  */
 const JBROWSE = 'https://jbrowse.org/code/jb2/main/index.html'
@@ -67,27 +73,31 @@ function link(figure) {
   return `${JBROWSE}?config=${HOSTED_CONFIG_URL}&session=spec-${session}`
 }
 
+const ref = f => `tview-demo-${f.name}`
+
 /**
- * The table, then the urls as link definitions under it.
+ * The urls as link definitions, so a page can link a demo as
+ * `[text][tview-demo-…]`.
  *
- * A session spec is a kilobyte of url-encoded JSON, and inline in a cell it
- * would set that column's width for every row — prettier pads a table to its
+ * A session spec is a kilobyte of url-encoded JSON, and inline in a table cell
+ * it would set that column's width for every row — prettier pads a table to its
  * widest cell, so the block would be reformatted the moment it was written and
  * `--check` could never pass. Out of line, the cells stay short and the urls
- * sit where prettier leaves them alone.
+ * sit where prettier leaves them alone. Each url goes on its own indented line,
+ * which is where prettier puts a link definition too long for one.
  */
+function urlBlock() {
+  return FIGURES.map(f => `[${ref(f)}]:\n  ${link(f)}`).join('\n')
+}
+
 function demoBlock() {
-  const ref = f => `tview-demo-${f.name}`
   return [
     table([
       ['locus', 'window', 'what it shows', 'open'],
       ...FIGURES.map(f => [f.label, f.loc, f.blurb, `[launch][${ref(f)}]`]),
     ]),
     '',
-    // the url on its own indented line, which is where prettier puts a link
-    // definition too long for one — emitted that way rather than reformatted
-    // afterwards, so `--check` compares against something stable
-    ...FIGURES.map(f => `[${ref(f)}]:\n  ${link(f)}`),
+    urlBlock(),
   ].join('\n')
 }
 
@@ -112,7 +122,7 @@ function indexPage() {
   <body>
     <p>
       Opening the <a href="${href}">${first.label} demo</a>, ${first.blurb}.
-      The others are listed in the <a href="${REPO}#live-demos">README</a>.
+      The others are listed in <a href="${REPO}/blob/main/docs/demos.md">docs/demos.md</a>.
     </p>
   </body>
 </html>
@@ -120,9 +130,15 @@ function indexPage() {
 }
 
 const check = process.argv.includes('--check')
-const before = fs.readFileSync(README, 'utf8')
+const rewrite = (file, blocks) => [
+  file,
+  writeBlocks(fs.readFileSync(file, 'utf8'), blocks),
+]
 const generated = {
-  [README]: writeBlocks(before, { 'demo-links': demoBlock() }),
+  ...Object.fromEntries([
+    rewrite(DEMOS, { 'demo-links': demoBlock() }),
+    ...LINKING_PAGES.map(file => rewrite(file, { 'demo-urls': urlBlock() })),
+  ]),
   [HOSTED_CONFIG]: hostedConfig(),
   [INDEX]: indexPage(),
 }

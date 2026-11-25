@@ -1,10 +1,10 @@
-// Writes the measured numbers in README.md, between the markers that name
-// them.
+// Writes the measured numbers in docs/tandem-repeats.md, between the markers
+// that name them.
 //
 //   pnpm readme:repeats           measure the trio and rewrite the blocks
 //   pnpm readme:repeats --check   fail if what is written is not what it measures
 //
-// Every number the README states about the trio is in one of these blocks, so
+// Every number the docs state about the trio is in one of these blocks, so
 // it is a rendering of a measurement rather than a claim someone typed once and
 // nobody could check afterwards. --check is the part that makes it a claim
 // again only if it passes.
@@ -15,7 +15,7 @@ import { GENOME, LOCI, TRIO, TRIO_REPORT_ORDER } from './lib/giabTrio.mjs'
 import { measureLoci } from './lib/measure.mjs'
 import { table, writeBlocks } from './lib/readme.mjs'
 
-const README = 'README.md'
+const DOC = 'docs/tandem-repeats.md'
 
 /** the array a locus is named for: the one the rows were ordered by */
 function subjectArray(measurement) {
@@ -79,7 +79,7 @@ function figureBlock(figureStats) {
   return table([
     ['figure', 'rows', 'columns', 'columns one row has', 'hidden'],
     ...figureStats.map(f => [
-      `[${f.name}](${f.out})`,
+      `[${f.name}](../${f.out})`,
       f.rows,
       f.columns,
       f.singleRowColumns,
@@ -108,7 +108,7 @@ for (const figure of REPEAT_FIGURES) {
   figureStats.push({ ...figure, ...measurement })
 }
 
-const before = fs.readFileSync(README, 'utf8')
+const before = fs.readFileSync(DOC, 'utf8')
 const after = writeBlocks(before, {
   'repeat-genotypes': genotypeBlock(measurements),
   'repeat-spread': spreadBlock(measurements),
@@ -118,13 +118,13 @@ const after = writeBlocks(before, {
 if (check) {
   if (before !== after) {
     console.error(
-      `${README} does not match what the data measures; run: pnpm readme:repeats`,
+      `${DOC} does not match what the data measures; run: pnpm readme:repeats`,
     )
     process.exitCode = 1
   } else {
-    console.log(`${README} matches the measurements`)
+    console.log(`${DOC} matches the measurements`)
   }
 } else {
-  fs.writeFileSync(README, after)
-  console.log(`wrote the measured blocks into ${README}`)
+  fs.writeFileSync(DOC, after)
+  console.log(`wrote the measured blocks into ${DOC}`)
 }

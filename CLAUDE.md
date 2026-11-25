@@ -107,7 +107,7 @@ Two blockers, both outside this repo, and they fix the order of the work:
   pushes.
 - A spec-driven figure loads the plugin from the store's `latest/` path (the
   pattern `PROTEIN3D_CONFIG` uses), which serves whatever is published — so the
-  screenshots disagree with this README until the measurement change is
+  screenshots disagree with these docs until the measurement change is
   released.
 
 So: publish the plugin first, then build `test_data/tview_config.json` plus a
