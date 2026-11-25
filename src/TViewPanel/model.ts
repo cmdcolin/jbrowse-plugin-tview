@@ -1,11 +1,11 @@
 import { BaseViewModel } from '@jbrowse/core/pluggableElementTypes'
 import { getSession } from '@jbrowse/core/util'
-import { addDisposer, types } from '@jbrowse/mobx-state-tree'
+import { addDisposer, isAlive, types } from '@jbrowse/mobx-state-tree'
 import { autorun } from 'mobx'
 import { MSAModelF } from 'react-msaview'
 
 import { buildColumnToRefPos, renderedColToMsaCol } from './coords'
-import { initRegion, initSources } from './init'
+import { initRegion, initSources, missingTrackIds } from './init'
 import { fetchTviewPlan } from '../LaunchTView/fetchTviewPlan'
 import { MAX_CELLS } from '../LaunchTView/limits'
 
@@ -28,6 +28,20 @@ export interface IRegion {
 }
 
 export type { TviewInit } from './init'
+
+/** the load the view last started, and the `init` it was started for */
+export type LoadState = { key: string } & (
+  | { status: 'loading' }
+  | { status: 'loaded' }
+  | { status: 'failed'; error: unknown }
+)
+
+/** what the panel shows in place of the alignment, or that it shows it */
+export type TViewState =
+  | { kind: 'alignment' }
+  | { kind: 'loading'; message: string }
+  | { kind: 'notice'; message: string }
+  | { kind: 'error'; error: unknown; retry: boolean }
 
 /**
  * #stateModel TViewPlugin
@@ -108,6 +122,13 @@ export default function stateModelFactory() {
       get initSources() {
         return self.init ? initSources(getSession(self), self.init) : undefined
       },
+      /**
+       * #getter
+       * what a load is keyed on: two inits that say the same thing are one
+       */
+      get initKey() {
+        return self.init ? JSON.stringify(self.init) : undefined
+      },
     }))
     .views(self => ({
       /**
@@ -141,29 +162,94 @@ export default function stateModelFactory() {
       },
     }))
     .volatile(() => ({
-      /** a load is in flight, or has failed and should not be retried */
-      loading: false,
-      loadFailed: false,
+      loadState: undefined as LoadState | undefined,
+    }))
+    .views(self => ({
+      /**
+       * #getter
+       * the load state of the current `init`, not of one it replaced
+       */
+      get currentLoad() {
+        const { loadState, initKey } = self
+        return loadState?.key === initKey ? loadState : undefined
+      },
+    }))
+    .views(self => ({
+      /**
+       * #getter
+       * why `init` cannot be loaded yet, or undefined once it can
+       */
+      get initBlocker(): TViewState | undefined {
+        const { init, initRegion } = self
+        const session = getSession(self)
+        const assembly = init
+          ? session.assemblyManager.get(init.assembly)
+          : undefined
+        const missing = init ? missingTrackIds(session, init) : []
+        return !init
+          ? { kind: 'notice', message: 'This view names no region to load' }
+          : assembly?.error
+            ? { kind: 'error', error: assembly.error, retry: false }
+            : !initRegion
+              ? {
+                  kind: 'loading',
+                  message: `Waiting for assembly ${init.assembly}`,
+                }
+              : initRegion.error !== undefined
+                ? { kind: 'error', error: initRegion.error, retry: false }
+                : missing.length
+                  ? {
+                      kind: 'error',
+                      error: `No track in this session has the id ${missing.join(', ')}`,
+                      retry: false,
+                    }
+                  : undefined
+      },
+    }))
+    .views(self => ({
+      /**
+       * #getter
+       */
+      get viewState(): TViewState {
+        const { init, data, currentLoad, initBlocker } = self
+        const loadState: TViewState =
+          currentLoad?.status === 'failed'
+            ? { kind: 'error', error: currentLoad.error, retry: true }
+            : currentLoad?.status === 'loaded'
+              ? data.msa
+                ? { kind: 'alignment' }
+                : {
+                    kind: 'notice',
+                    message: 'The region has no reference sequence or reads',
+                  }
+              : {
+                  kind: 'loading',
+                  message: 'Building alignment from track data',
+                }
+        return !init && data.msa
+          ? { kind: 'alignment' }
+          : (initBlocker ?? loadState)
+      },
     }))
     .actions(self => ({
       /**
        * #action
        */
-      setLoading(arg: boolean) {
-        self.loading = arg
-      },
-      /**
-       * #action
-       */
-      setLoadFailed(arg: boolean) {
-        self.loadFailed = arg
+      setLoadState(arg?: LoadState) {
+        self.loadState = arg
       },
       /**
        * #action
        */
       setInit(arg?: TviewInit) {
         self.init = arg
-        self.loadFailed = false
+      },
+      /**
+       * #action
+       * forget a failed load, so the view tries its `init` again
+       */
+      retryLoad() {
+        self.loadState = undefined
       },
       /**
        * #action
@@ -179,9 +265,7 @@ export default function stateModelFactory() {
         self.insertionWidths = result.insertionWidths
         self.arraySpans = result.arraySpans
         self.data.setMSA(result.msa)
-        if (result.tree) {
-          self.data.setTree(result.tree)
-        }
+        self.data.setTree(result.tree)
       },
       /**
        * #action
@@ -204,57 +288,72 @@ export default function stateModelFactory() {
         }
       },
     }))
-    .actions(self => ({
-      /**
-       * #action
-       * builds the alignment `init` describes, from whatever `init` describes
-       * it over. The one way an alignment ever gets here.
-       */
-      async load(region: FetchRegion, sources: TviewSource[]) {
-        const session = getSession(self)
-        self.setLoading(true)
-        self.setLoadingMSA(true)
-        self.setStatus({ msg: 'Building alignment from track data' })
-        try {
-          const result = await fetchTviewPlan({ session, sources, region })
-          if (result.tooLarge) {
-            throw new Error(
-              `alignment is ${result.cellCount.toLocaleString('en-US')} cells, above the ${MAX_CELLS.toLocaleString('en-US')} limit`,
-            )
+    .actions(self => {
+      let controller: AbortController | undefined
+      return {
+        /**
+         * #action
+         * builds the alignment `init` describes, from whatever `init`
+         * describes it over. The one way an alignment ever gets here. A result
+         * for an `init` that is no longer current, or for a view that has been
+         * closed, is dropped.
+         */
+        async load(key: string, region: FetchRegion, sources: TviewSource[]) {
+          controller?.abort()
+          const own = new AbortController()
+          controller = own
+          const current = () =>
+            controller === own && isAlive(self) && self.initKey === key
+          self.setLoadState({ key, status: 'loading' })
+          try {
+            const result = await fetchTviewPlan({
+              session: getSession(self),
+              sources,
+              region,
+              signal: own.signal,
+            })
+            if (current()) {
+              if (result.tooLarge) {
+                self.setLoadState({
+                  key,
+                  status: 'failed',
+                  error: `The alignment is ${result.cellCount.toLocaleString('en-US')} cells, above the ${MAX_CELLS.toLocaleString('en-US')} limit`,
+                })
+              } else {
+                self.setMsaData(result)
+                self.setLoadState({ key, status: 'loaded' })
+              }
+            }
+          } catch (error) {
+            if (current()) {
+              console.error(error)
+              self.setLoadState({ key, status: 'failed', error })
+            }
           }
-          self.setMsaData(result)
-        } catch (e) {
-          console.error(e)
-          self.setLoadFailed(true)
-          session.notify(`Could not build tview alignment: ${e}`, 'error')
-        } finally {
-          self.setLoadingMSA(false)
-          self.setStatus(undefined)
-          self.setLoading(false)
-        }
-      },
-    }))
+        },
+        beforeDestroy() {
+          controller?.abort()
+        },
+      }
+    })
     .actions(self => ({
       afterCreate() {
+        self.setImportForm(false)
+        const { initKey } = self
+        if (initKey && self.data.msa) {
+          self.setLoadState({ key: initKey, status: 'loaded' })
+        }
         addDisposer(
           self,
           autorun(() => {
-            // Everything that decides whether to load is a getter over `init`,
-            // so this reads as the one sentence it is: an alignment the view
-            // does not have, over a region and files it can now resolve. It
-            // stays armed across the assembly loading and the track configs
-            // arriving, which is what a restored session needs and what a
-            // session-authored view needs, without either being a special case.
-            const { data, initRegion, initSources, loading, loadFailed } = self
+            const { initKey, initRegion, initSources, loadState } = self
             if (
-              !data.msa &&
-              initRegion &&
-              initSources &&
-              !loading &&
-              !loadFailed
+              initKey &&
+              loadState?.key !== initKey &&
+              initRegion?.region &&
+              initSources
             ) {
-              // load handles its own failures, so it never rejects
-              void self.load(initRegion, initSources)
+              void self.load(initKey, initRegion.region, initSources)
             }
           }),
         )

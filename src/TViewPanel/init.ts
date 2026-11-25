@@ -1,7 +1,9 @@
 import { parseLocString } from '@jbrowse/core/util'
 import { getTrackName } from '@jbrowse/core/util/tracks'
 
-import type { TviewSource } from '../LaunchTView/fetchTviewPlan'
+import { MAX_BP } from '../LaunchTView/limits'
+
+import type { FetchRegion, TviewSource } from '../LaunchTView/fetchTviewPlan'
 import type { AbstractSessionModel } from '@jbrowse/core/util'
 
 /**
@@ -50,21 +52,74 @@ const initKeyMap: Record<keyof TviewInit, true> = {
 }
 export const initKeys = new Set<string>(Object.keys(initKeyMap))
 
-/** the region `init.loc` names, or undefined until the assembly can parse it */
+export type RegionCheck =
+  | { region: FetchRegion; error?: undefined }
+  | { region?: undefined; error: string }
+
+/** the slice of a loaded assembly that a locstring is resolved against */
+export interface LocAssembly {
+  name: string
+  isValidRefName: (refName: string) => boolean
+  getCanonicalRefName2: (refName: string) => string
+  getRegionForRefName: (
+    refName: string,
+  ) => { start: number; end: number } | undefined
+}
+
+function errorText(e: unknown) {
+  return e instanceof Error ? e.message : String(e)
+}
+
+/**
+ * The region `loc` names on `assembly`, under the assembly's own name for the
+ * sequence and clamped to it, or why there is none: a locstring that does not
+ * parse, a region off the end of the contig, or one wider than {@link MAX_BP}.
+ * A bare refName means the whole contig, and is held to the same limit.
+ */
+export function checkRegion(assembly: LocAssembly, loc: string): RegionCheck {
+  try {
+    const parsed = parseLocString(loc, refName =>
+      assembly.isValidRefName(refName),
+    )
+    const refName = assembly.getCanonicalRefName2(parsed.refName)
+    const contig = assembly.getRegionForRefName(refName)
+    return contig
+      ? clampToContig({
+          assemblyName: assembly.name,
+          refName,
+          start: Math.max(contig.start, parsed.start ?? contig.start),
+          end: Math.min(contig.end, parsed.end ?? contig.end),
+          loc,
+          contigLength: contig.end,
+        })
+      : { error: `${assembly.name} has no sequence named ${refName}` }
+  } catch (e) {
+    return { error: errorText(e) }
+  }
+}
+
+function clampToContig({
+  loc,
+  contigLength,
+  ...region
+}: FetchRegion & { loc: string; contigLength: number }): RegionCheck {
+  const width = region.end - region.start
+  const n = (x: number) => x.toLocaleString('en-US')
+  return width <= 0
+    ? {
+        error: `${loc} lies outside ${region.refName}, which is ${n(contigLength)}bp`,
+      }
+    : width > MAX_BP
+      ? {
+          error: `Region is ${n(width)}bp, wider than the ${n(MAX_BP)}bp limit`,
+        }
+      : { region }
+}
+
+/** {@link checkRegion} for `init`, or undefined until its assembly has loaded */
 export function initRegion(session: AbstractSessionModel, init: TviewInit) {
-  const { assemblyManager } = session
-  if (!assemblyManager.get(init.assembly)?.initialized) {
-    return undefined
-  }
-  const parsed = parseLocString(init.loc, refName =>
-    assemblyManager.isValidRefName(refName, init.assembly),
-  )
-  return {
-    assemblyName: init.assembly,
-    refName: parsed.refName,
-    start: parsed.start ?? 0,
-    end: parsed.end ?? 0,
-  }
+  const assembly = session.assemblyManager.get(init.assembly)
+  return assembly?.initialized ? checkRegion(assembly, init.loc) : undefined
 }
 
 /**
@@ -83,12 +138,16 @@ interface ResolvedTrack {
   sample: string
 }
 
+function entryTrackId(entry: TviewTrackInit) {
+  return typeof entry === 'string' ? entry : entry.trackId
+}
+
 function resolveTrack(
   session: AbstractSessionModel,
   entry: TviewTrackInit,
 ): ResolvedTrack | undefined {
-  const { trackId, sample } =
-    typeof entry === 'string' ? { trackId: entry, sample: undefined } : entry
+  const trackId = entryTrackId(entry)
+  const sample = typeof entry === 'string' ? undefined : entry.sample
   const conf = session.getTrackById(trackId)
   return conf
     ? {
@@ -122,4 +181,14 @@ export function initSources(
     adapterConfig: track.adapterConfig,
     sample: labelled ? track.sample : undefined,
   }))
+}
+
+/** the trackIds `init.tracks` names that this session has no track for */
+export function missingTrackIds(
+  session: AbstractSessionModel,
+  init: TviewInit,
+) {
+  return init.tracks
+    .map(entryTrackId)
+    .filter(trackId => !session.getTrackById(trackId))
 }

@@ -1,5 +1,3 @@
-import { readConfObject } from '@jbrowse/core/configuration'
-
 import { MAX_CELLS } from './limits'
 
 import type { AbstractSessionModel } from '@jbrowse/core/util'
@@ -21,24 +19,6 @@ export interface TviewSource {
 }
 
 /**
- * The assembly's own sequence adapter, which is what makes the reference a row
- * and, through it, makes an array an interval rather than an insertion. An
- * assembly that cannot supply one still works: the alignment is then reads only
- * and no array is reported, which is the pre-reference behaviour.
- */
-export function sequenceAdapterConfig(
-  session: AbstractSessionModel,
-  assemblyName: string,
-) {
-  const assembly = session.assemblyManager.get(assemblyName)
-  const conf = assembly?.configuration
-  return conf
-    ? (readConfObject(conf, ['sequence', 'adapter']) as
-        Record<string, unknown> | undefined)
-    : undefined
-}
-
-/**
  * One RPC per launch, however many files it draws from. The session id is
  * shared across the sources so the worker keeps one adapter cache for the view
  * rather than one per file.
@@ -48,20 +28,26 @@ export async function fetchTviewPlan({
   sources,
   region,
   maxCells = MAX_CELLS,
+  signal,
 }: {
   session: AbstractSessionModel
   sources: TviewSource[]
   region: FetchRegion
   maxCells?: number
+  signal?: AbortSignal
 }) {
   const rpcSessionId = `tview-${sources.map(s => s.trackId).join(',')}`
+  const assembly = session.assemblyManager.get(region.assemblyName)
   return session.rpcManager.call(rpcSessionId, 'TviewGetPlan', {
     sources: sources.map(s => ({
       adapterConfig: s.adapterConfig,
       sample: s.sample,
     })),
-    sequenceAdapterConfig: sequenceAdapterConfig(session, region.assemblyName),
+    assemblyName: region.assemblyName,
+    sequenceRefName:
+      assembly?.getSeqAdapterRefName(region.refName) ?? region.refName,
     region,
     maxCells,
+    signal,
   })
 }

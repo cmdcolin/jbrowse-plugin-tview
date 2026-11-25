@@ -53,10 +53,16 @@ afterAll(async () => {
   server.kill()
 })
 
-async function openJBrowse() {
+/**
+ * Opens the instance, on the config's defaultSession or on a session spec. A
+ * spec view goes through the plugin's LaunchView-TView, which is the path a
+ * shared link takes.
+ */
+async function openJBrowse(specViews?: Record<string, unknown>[]) {
   const page = await browser.newPage()
   await page.setViewport({ width: 1400, height: 900 })
   const errors: string[] = []
+  const requests: string[] = []
   page.on('pageerror', e => {
     errors.push(e instanceof Error ? e.message : String(e))
   })
@@ -65,9 +71,32 @@ async function openJBrowse() {
       errors.push(m.text())
     }
   })
-  await page.goto(URL, { waitUntil: 'networkidle2' })
+  page.on('request', r => {
+    requests.push(r.url())
+  })
+  const session = specViews
+    ? `&session=spec-${encodeURIComponent(JSON.stringify({ views: specViews }))}`
+    : ''
+  await page.goto(`${URL}${session}`, { waitUntil: 'networkidle2' })
   await page.waitForFunction(() => !!window.JBrowseSession, { timeout: 90_000 })
-  return { page, errors }
+  return { page, errors, requests }
+}
+
+const bamRequests = (requests: string[]) =>
+  requests.filter(url => url.includes('volvox-sorted-altname.bam')).length
+
+/** react-msaview's file-import form, which a tview must never show */
+const IMPORT_FORM = 'MSA file or URL'
+
+async function tviewText(page: Page) {
+  await page.waitForFunction(
+    () =>
+      window.JBrowseSession.views.find(
+        (v: { type: string }) => v.type === 'TView',
+      )?.viewState.kind === 'error',
+    { timeout: 60_000 },
+  )
+  return page.evaluate(() => document.body.innerText)
 }
 
 /** the session exists before defaultSession's track is instantiated */
@@ -84,6 +113,7 @@ declare global {
     JBrowseSession: any
     JBrowseRootModel: any
     JBrowsePluginTView: unknown
+    tviewCalls: number
   }
 }
 
@@ -284,11 +314,11 @@ describe('tview plugin in jbrowse-web', () => {
         rows: v.rows.length,
         msaChars: v.data.msa.length,
         numColumns: v.numColumns,
-        loadFailed: v.loadFailed,
+        state: v.viewState.kind,
         colMapsTo: v.colToGenomeRegion(10),
       }
     })
-    expect(restored.loadFailed).toBe(false)
+    expect(restored.state).toBe('alignment')
     expect(restored.rows).toBe(built.rows)
     expect(restored.msaChars).toBe(built.msaChars)
     expect(restored.numColumns).toBe(2000)
@@ -442,6 +472,115 @@ describe('tview plugin in jbrowse-web', () => {
 
     expect(errors.filter(e => /TView|tview/i.test(e))).toEqual([])
     await screenshot(page, '03-tview')
+    await page.close()
+  }, 180_000)
+
+  it('names a spec track id that does not exist, instead of the import form', async () => {
+    const { page, requests } = await openJBrowse([
+      {
+        type: 'TView',
+        assembly: 'volvox',
+        loc: 'ctgA:1000..1100',
+        tracks: ['volvox_bam', 'no_such_track'],
+      },
+    ])
+    const text = await tviewText(page)
+    expect(text).toContain('No track in this session has the id no_such_track')
+    expect(text).not.toContain(IMPORT_FORM)
+    const loadState = await page.evaluate(
+      () =>
+        window.JBrowseSession.views.find(
+          (v: { type: string }) => v.type === 'TView',
+        ).loadState,
+    )
+    expect(loadState).toBeUndefined()
+    expect(bamRequests(requests)).toBe(0)
+    await screenshot(page, '05-missing-track')
+    await page.close()
+  }, 180_000)
+
+  it('refuses an over-wide spec loc before any reads are fetched', async () => {
+    const { page, requests } = await openJBrowse([
+      {
+        type: 'TView',
+        assembly: 'volvox',
+        loc: 'ctgA:1..40000',
+        tracks: ['volvox_bam'],
+      },
+    ])
+    const text = await tviewText(page)
+    expect(text).toContain('Region is 40,000bp, wider than the 20,000bp limit')
+    expect(text).not.toContain(IMPORT_FORM)
+    const loadState = await page.evaluate(
+      () =>
+        window.JBrowseSession.views.find(
+          (v: { type: string }) => v.type === 'TView',
+        ).loadState,
+    )
+    expect(loadState).toBeUndefined()
+    expect(bamRequests(requests)).toBe(0)
+    await screenshot(page, '06-too-wide')
+    await page.close()
+  }, 180_000)
+
+  // ctgB has no reads in this BAM and is 6,079bp, so this loc both runs off the
+  // end of the contig and yields no read rows. It used to drop the reference
+  // row for being short, leave the alignment empty, and refetch forever.
+  it('draws the reference alone over a readless region, and loads once', async () => {
+    const { page, errors, requests } = await openJBrowse([
+      {
+        type: 'TView',
+        assembly: 'volvox',
+        loc: 'ctgB:6001..7000',
+        tracks: ['volvox_bam'],
+      },
+    ])
+    await page.waitForFunction(
+      () =>
+        window.JBrowseSession.views.find(
+          (v: { type: string }) => v.type === 'TView',
+        )?.rows.length > 0,
+      { timeout: 60_000 },
+    )
+    const before = await page.evaluate(() => {
+      const session = window.JBrowseSession
+      const v = session.views.find((x: { type: string }) => x.type === 'TView')
+      window.tviewCalls = 0
+      const { rpcManager } = session
+      const call = rpcManager.call.bind(rpcManager)
+      rpcManager.call = (id: string, name: string, args: unknown) => {
+        if (name === 'TviewGetPlan') {
+          window.tviewCalls++
+        }
+        return call(id, name, args)
+      }
+      return {
+        rows: v.rows.map((r: string[]) => [r[0], r[1]?.length]),
+        msaRegion: v.msaRegion,
+        state: v.viewState.kind,
+      }
+    })
+    expect(before.rows).toEqual([['ctgB', 79]])
+    expect(before.msaRegion).toEqual({
+      refName: 'ctgB',
+      start: 6000,
+      end: 6079,
+    })
+    expect(before.state).toBe('alignment')
+    // the request listener does see the worker's fetches, so a zero below is
+    // not a listener that hears nothing
+    const fetched = bamRequests(requests)
+    expect(fetched).toBeGreaterThan(0)
+
+    await new Promise(r => setTimeout(r, 3000))
+    const calls = await page.evaluate(() => window.tviewCalls)
+    expect(calls).toBe(0)
+    expect(bamRequests(requests)).toBe(fetched)
+    expect(await page.evaluate(() => document.body.innerText)).not.toContain(
+      IMPORT_FORM,
+    )
+    expect(errors.filter(e => /TView|tview/i.test(e))).toEqual([])
+    await screenshot(page, '07-reference-only')
     await page.close()
   }, 180_000)
 })

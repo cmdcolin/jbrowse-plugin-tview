@@ -1,5 +1,8 @@
+import { isSequenceAdapter } from '@jbrowse/core/data_adapters/BaseAdapter'
 import { getAdapter } from '@jbrowse/core/data_adapters/dataAdapterCache'
+import { getFeatureAdapterOrThrow } from '@jbrowse/core/data_adapters/getFeatureAdapter'
 import { RpcMethodType } from '@jbrowse/core/pluggableElementTypes'
+import { assembleLocString } from '@jbrowse/core/util'
 
 import { buildSampleTree } from '../sampleTree'
 import { planTviewMsa, renderTviewMsa } from '../tview'
@@ -26,10 +29,10 @@ export interface TviewSourceArgs {
 
 export interface TviewGetPlanArgs {
   sources: TviewSourceArgs[]
-  /** the assembly's sequence adapter, when it has one */
-  sequenceAdapterConfig?: Record<string, unknown>
+  /** names the genome, so the call layer attaches its sequence adapter */
+  assemblyName: string
   /** the sequence adapter's own spelling of the region */
-  sequenceRefName?: string
+  sequenceRefName: string
   region: Region
   /** stop before rendering an alignment bigger than this many cells */
   maxCells: number
@@ -71,21 +74,6 @@ declare module '@jbrowse/core/rpc/RpcRegistry' {
   }
 }
 
-/** the slice of a data adapter this reads, which is all of `getFeatures` */
-interface FeatureSource {
-  getFeatures: (region: Region) => {
-    subscribe: (observer: {
-      next: (feature: AlignmentFeature) => void
-      error: (error: unknown) => void
-      complete: () => void
-    }) => unknown
-  }
-}
-
-function isFeatureSource(adapter: object): adapter is FeatureSource {
-  return 'getFeatures' in adapter && typeof adapter.getFeatures === 'function'
-}
-
 /**
  * Drains an adapter's feature observable into an array.
  *
@@ -94,22 +82,16 @@ function isFeatureSource(adapter: object): adapter is FeatureSource {
  * `ObservableCreate`. Subscribing directly needs neither.
  */
 async function fetchAll(
-  pluginManager: PluginManager,
-  sessionId: string,
-  adapterConfig: Record<string, unknown>,
+  args: RpcExecuteArgs<'TviewGetPlan'> & {
+    pluginManager: PluginManager
+    adapterConfig: Record<string, unknown>
+  },
   region: Region,
 ) {
-  const { dataAdapter } = await getAdapter(
-    pluginManager,
-    sessionId,
-    adapterConfig,
-  )
-  if (!isFeatureSource(dataAdapter)) {
-    throw new Error(`${adapterConfig.type as string} has no getFeatures`)
-  }
+  const dataAdapter = await getFeatureAdapterOrThrow(args)
   return new Promise<AlignmentFeature[]>((resolve, reject) => {
     const ret: AlignmentFeature[] = []
-    dataAdapter.getFeatures(region).subscribe({
+    dataAdapter.getFeatures(region, { signal: args.signal }).subscribe({
       next: feature => ret.push(feature),
       error: reject,
       complete: () => {
@@ -117,6 +99,42 @@ async function fetchAll(
       },
     })
   })
+}
+
+/**
+ * The reference over exactly `region`, which becomes the alignment's first row
+ * and is what makes an array an interval rather than an insertion. The region
+ * arrives clamped to its contig, so a short answer means the sequence could not
+ * be read, and a row that stops early would misplace every column after it.
+ */
+async function fetchReference(
+  pluginManager: PluginManager,
+  {
+    sessionId,
+    sequenceAdapter,
+    sequenceRefName,
+    region,
+    signal,
+  }: RpcExecuteArgs<'TviewGetPlan'>,
+) {
+  const dataAdapter = sequenceAdapter
+    ? (await getAdapter(pluginManager, sessionId, sequenceAdapter)).dataAdapter
+    : undefined
+  const sequence =
+    dataAdapter && isSequenceAdapter(dataAdapter)
+      ? await dataAdapter.getSequence(
+          { ...region, refName: sequenceRefName },
+          { signal },
+        )
+      : undefined
+  const want = region.end - region.start
+  if (sequence?.length !== want) {
+    const n = (x: number) => x.toLocaleString('en-US')
+    throw new Error(
+      `Could not read the reference sequence over ${assembleLocString(region)}: got ${n(sequence?.length ?? 0)}bp of ${n(want)}bp`,
+    )
+  }
+  return sequence
 }
 
 /**
@@ -138,45 +156,34 @@ export default class TviewGetPlan extends RpcMethodType<'TviewGetPlan'> {
   name = 'TviewGetPlan' as const
 
   async serializeArguments(args: TviewGetPlanArgs & RpcCallContext) {
-    const refNameFor = async (adapterConfig: Record<string, unknown>) => {
-      const { regions } = await this.renameRegions({
-        sessionId: args.sessionId,
-        adapterConfig,
-        regions: [args.region],
-      })
-      return regions[0]!.refName
-    }
     const sources = await Promise.all(
-      args.sources.map(async source => ({
-        ...source,
-        refName: await refNameFor(source.adapterConfig),
-      })),
+      args.sources.map(async source => {
+        const { regions } = await this.renameRegions({
+          sessionId: args.sessionId,
+          adapterConfig: source.adapterConfig,
+          regions: [args.region],
+        })
+        return { ...source, refName: regions[0]!.refName }
+      }),
     )
-    const sequenceRefName = args.sequenceAdapterConfig
-      ? await refNameFor(args.sequenceAdapterConfig)
-      : undefined
-
-    return super.serializeArguments({ ...args, sources, sequenceRefName })
+    return super.serializeArguments({ ...args, sources })
   }
 
   async execute(args: RpcExecuteArgs<'TviewGetPlan'>) {
-    const {
-      sessionId,
-      sources,
-      sequenceAdapterConfig,
-      sequenceRefName,
-      region,
-      maxCells,
-    } = await this.deserializeArguments(args)
+    const { pluginManager } = this
+    const { sources, region, maxCells } = args
 
-    const perSource = await Promise.all(
-      sources.map(source =>
-        fetchAll(this.pluginManager, sessionId, source.adapterConfig, {
-          ...region,
-          refName: source.refName ?? region.refName,
-        }),
+    const [perSource, sequence] = await Promise.all([
+      Promise.all(
+        sources.map(source =>
+          fetchAll(
+            { ...args, pluginManager, adapterConfig: source.adapterConfig },
+            { ...region, refName: source.refName ?? region.refName },
+          ),
+        ),
       ),
-    )
+      fetchReference(pluginManager, args),
+    ])
     const features: AlignmentFeature[] = []
     const sampleByIndex: (string | undefined)[] = []
     for (const [i, feats] of perSource.entries()) {
@@ -186,27 +193,6 @@ export default class TviewGetPlan extends RpcMethodType<'TviewGetPlan'> {
           sampleByIndex.push(sources[i]!.sample)
         }
       }
-    }
-
-    let sequence: string | undefined
-    if (sequenceAdapterConfig) {
-      const seqFeats = await fetchAll(
-        this.pluginManager,
-        sessionId,
-        sequenceAdapterConfig,
-        { ...region, refName: sequenceRefName ?? region.refName },
-      )
-      const seq = seqFeats[0]?.get('seq') as string | undefined
-      const seqStart = seqFeats[0]?.get('start') as number | undefined
-      // the adapter may answer with a wider block than it was asked for
-      const sliced =
-        seq !== undefined && seqStart !== undefined
-          ? seq.slice(region.start - seqStart, region.end - seqStart)
-          : undefined
-      // a short answer means the region runs off the end of the contig, and a
-      // reference row that stops early would misplace every column after it
-      sequence =
-        sliced?.length === region.end - region.start ? sliced : undefined
     }
 
     const plan = planTviewMsa({

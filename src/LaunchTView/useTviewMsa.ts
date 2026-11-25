@@ -27,7 +27,7 @@ export function useTviewMsa({
   session: AbstractSessionModel
   init?: TviewInit
 }) {
-  const region = init ? initRegion(session, init) : undefined
+  const region = init ? initRegion(session, init)?.region : undefined
   const sources = init ? initSources(session, init) : undefined
   return useSWR(
     region && sources

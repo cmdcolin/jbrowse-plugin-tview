@@ -17,7 +17,7 @@ import {
 } from '@mui/material'
 
 import ArrayReport from './ArrayReport'
-import { MAX_BP } from '../limits'
+import { initRegion } from '../../TViewPanel/init'
 import { useTviewMsa } from '../useTviewMsa'
 
 import type { TviewInit } from '../../TViewPanel/init'
@@ -28,9 +28,7 @@ import type { LinearGenomeViewModel } from '@jbrowse/plugin-linear-genome-view'
 const FIT_WIDTH_PX = 3000
 
 function trackLabel(track: AbstractTrackModel) {
-  return (
-    (getConf(track, 'name')) || (getConf(track, 'trackId'))
-  )
+  return getConf(track, 'name') || getConf(track, 'trackId')
 }
 
 /** every alignments track open in the same view, the launching one first */
@@ -61,8 +59,6 @@ export default function LaunchTViewDialog({
         end: Math.ceil(block.end),
       }
     : undefined
-  const width = region ? region.end - region.start : 0
-  const tooWide = width > MAX_BP
 
   const candidates = peerTracks(view, model)
   // the launching track is always in; the others are opt-in, because pulling
@@ -87,10 +83,8 @@ export default function LaunchTViewDialog({
       }
     : undefined
 
-  const { data, error, isLoading } = useTviewMsa({
-    session,
-    init: tooWide ? undefined : init,
-  })
+  const regionError = init ? initRegion(session, init)?.error : undefined
+  const { data, error, isLoading } = useTviewMsa({ session, init })
 
   // 10 is comfortable for an ordinary pileup, but an unrolled tandem array runs
   // to hundreds of columns and at 10 almost none of it is on screen at once.
@@ -140,11 +134,8 @@ export default function LaunchTViewDialog({
             ))}
           </div>
         ) : null}
-        {tooWide ? (
-          <Typography>
-            Region is {width.toLocaleString('en-US')}bp, wider than the{' '}
-            {MAX_BP.toLocaleString('en-US')}bp limit. Zoom in and try again.
-          </Typography>
+        {regionError !== undefined ? (
+          <Typography>{regionError}. Zoom in and try again.</Typography>
         ) : error ? (
           <ErrorMessage error={error} />
         ) : isLoading ? (
