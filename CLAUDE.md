@@ -2,40 +2,24 @@
 
 See `../CLAUDE.md` for the publishing rules that apply to every plugin here.
 
-## The mst/mobx overrides in `pnpm-workspace.yaml` come out when v5 ships
+## The stack is JBrowse v5 betas and react-msaview 11
 
-This plugin targets **JBrowse v5+ only**, and its stack is already v5-shaped:
-`@jbrowse/mobx-state-tree@6`, `mobx@7`, `mobx-react@10` — which is also what
-`react-msaview@6.1.1` declares as peers.
+`@jbrowse/core` and `@jbrowse/plugin-linear-genome-view` are pinned to an exact
+`5.0.0-beta.N` from npm's `next` tag, and `react-msaview@11` peers on
+`@jbrowse/core >=5.0.0-0`. The betas declare `@jbrowse/mobx-state-tree@6` and
+`mobx@7` themselves, so there are no pnpm overrides; `pnpm why
+@jbrowse/mobx-state-tree` should say "Found 1 version". Two majors in the tree
+show up far from the cause, as model types that stop narrowing across the
+`@jbrowse/core` boundary (mst's types are nominal).
 
-`@jbrowse/core@4.3.0` is still the newest published core, and it depends on
-`@jbrowse/mobx-state-tree@^5.6.0` / `mobx@^6.15.3`. Without pinning, both mst
-majors land in the tree and **every model type that crosses the `@jbrowse/core`
-boundary fails to typecheck** — mst's types are nominal, so a v6 `IModelType` is
-not a v5 `IAnyModelType` (`[$type]` missing). It surfaces far from the cause:
-`types.compose('TView', BaseViewModel, MSAModelF(), …)` silently loses its named
-overload, which collapses `isTView`'s narrowing, so `connectedViewId` and
-`connectedHighlights` "don't exist" over in
-`AddHighlightModel/MsaToGenomeHighlight.tsx`.
-
-So `pnpm-workspace.yaml` carries:
-
-```yaml
-overrides:
-  '@jbrowse/mobx-state-tree': ^6.1.0
-  mobx: ^7.0.0
-  mobx-react: ^10.0.0
-```
-
-**Delete that block once `@jbrowse/core` v5 is published** and bump core +
-`@jbrowse/plugin-linear-genome-view` to `^5`. At that point core ships mst 6
-natively, the tree dedupes on its own, and the override is just a pin that will
-eventually hold something back. `pnpm why @jbrowse/mobx-state-tree` should say
-"Found 1 version" with or without it.
-
-Note the overrides are in `pnpm-workspace.yaml`, not the `pnpm.overrides` key in
-`package.json` — pnpm 11 stopped reading that key and only warns that it was
-ignored, so an override put there looks applied but does nothing.
+- Bumping the beta rewrites the `@jbrowse/*@5.0.0-beta.N` lines pnpm keeps under
+  `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`; commit them with the
+  lockfile.
+- A session track config is a frozen plain object in v5
+  (`session.getTrackById`), which `readConfObject` refuses: read `adapter` off
+  it directly and the name through `getTrackName`.
+- An RPC method is entered in `RpcRegistry` by module augmentation beside its
+  class, which is what types `rpcManager.call('TviewGetPlan', …)`.
 
 ## `typescript` is held at 6.x by eslint, not by this code
 
