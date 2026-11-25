@@ -1,5 +1,9 @@
 import { alignInsertionSite } from './align'
-import { buildArrayBlocks, reanchorInsertions } from './alleles'
+import {
+  buildArrayBlocks,
+  normalizeInsertions,
+  reanchorInsertions,
+} from './alleles'
 import {
   ABSENT,
   SPANNED_GAP,
@@ -368,7 +372,11 @@ export function planTviewMsa({
   const intervals = sequence
     ? mergeArrays(findReferenceArrays(sequence, start))
     : []
-  const anchored = reanchorInsertions(clipped, intervals)
+  const anchored = normalizeInsertions(
+    reanchorInsertions(clipped, intervals),
+    intervals,
+    start,
+  )
   const arrays = buildArrayBlocks(anchored, intervals)
   const ownedByArray = new Set<number>()
   for (const array of arrays) {

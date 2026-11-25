@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildArrayBlocks,
   extractAllele,
+  normalizeInsertions,
   reanchorInsertions,
   shiftInsertion,
 } from '../src/LaunchTView/alleles'
@@ -209,5 +210,124 @@ describe('extractAllele', () => {
   it('adds what a read inserted inside the interval', () => {
     const r = read('a', [[1012, 'CTGCTG']])
     expect(extractAllele(r, 1000, 1030)!.length).toBe(36)
+  })
+})
+
+/** the read's bases in read order, which no re-filing of its insertions may change */
+function spell(read: ReadLayout) {
+  let ret = ''
+  for (let i = 0; i <= read.refChars.length; i++) {
+    ret += read.insertions.get(read.start + i) ?? ''
+    ret += /[ACGTN]/.test(read.refChars[i] ?? '') ? read.refChars[i] : ''
+  }
+  return ret
+}
+
+function normalized(read: ReadLayout, arrays: ReferenceArray[] = [], from = 0) {
+  return normalizeInsertions([read], arrays, from)[0]!
+}
+
+describe('normalizeInsertions', () => {
+  const plain = (
+    insertions: [number, string][],
+    refChars = 'TTTTCACACAGGGG',
+  ) => ({
+    name: 'a',
+    start: 0,
+    refChars,
+    insertions: new Map(insertions),
+  })
+
+  it('walks an insertion to the leftmost placement that spells the same read', () => {
+    const read = plain([[10, 'CA']])
+    const result = normalized(read)
+    expect([...result.insertions]).toEqual([[4, 'CA']])
+    expect(spell(result)).toBe(spell(read))
+  })
+
+  it('leaves a read alone when nothing can move', () => {
+    const read = plain([[4, 'CA']])
+    expect(normalized(read)).toBe(read)
+  })
+
+  it('stops at a deletion', () => {
+    const read = plain([[10, 'CA']], 'TTTTCA-ACAGGGG')
+    const result = normalized(read)
+    expect([...result.insertions]).toEqual([[7, 'AC']])
+    expect(spell(result)).toBe(spell(read))
+  })
+
+  it('stops at the read own start', () => {
+    const read = { ...plain([[11, 'CA']], 'CACACAGGGG'), start: 5 }
+    expect([...normalized(read).insertions]).toEqual([[5, 'CA']])
+  })
+
+  it('stops at the region start', () => {
+    const read = plain([[10, 'CA']])
+    expect([...normalized(read, [], 7).insertions]).toEqual([[7, 'AC']])
+  })
+
+  it('keeps two insertions that meet in read order', () => {
+    const read = plain([
+      [4, 'GG'],
+      [10, 'CA'],
+    ])
+    const result = normalized(read)
+    expect([...result.insertions]).toEqual([[4, 'GGCA']])
+    expect(spell(result)).toBe(spell(read))
+  })
+
+  // the array's copies run on 40 copies past its interval, so an insertion
+  // beyond the flank walks back through them toward it
+  const longRun: ReadLayout = {
+    name: 'run',
+    start: 900,
+    refChars: FILLER.repeat(2).slice(0, 100) + 'CTG'.repeat(40) + FILLER,
+    insertions: new Map(),
+  }
+
+  it('stops one past an array end, never inside it', () => {
+    const read = { ...longRun, insertions: new Map([[1081, 'CTG']]) }
+    const result = normalized(read, [ARRAY])
+    expect([...result.insertions.keys()]).toEqual([ARRAY.end + 1])
+    expect(spell(result)).toBe(spell(read))
+  })
+
+  it('leaves an insertion the array owns where it is', () => {
+    const read = {
+      ...longRun,
+      insertions: new Map([
+        [1012, 'CTG'],
+        [ARRAY.end, 'CTG'],
+      ]),
+    }
+    expect(normalized(read, [ARRAY])).toBe(read)
+  })
+
+  it('leaves every copy count and allele length as re-anchoring left it', () => {
+    const reads = [
+      read('ref'),
+      read('inside', [[1012, 'CTGCTG']]),
+      read('early', [[997, 'CTG'.repeat(7)]]),
+      read('late', [[1033, 'CTG'.repeat(4)]]),
+      read('beyond', [[1070, 'GGATCC']]),
+      { ...longRun, name: 'run', insertions: new Map([[1081, 'CTG']]) },
+    ]
+    const anchored = reanchorInsertions(reads, [ARRAY])
+    const normal = normalizeInsertions(anchored, [ARRAY], 900)
+    expect(normal.filter((r, i) => r !== anchored[i]).map(r => r.name)).toEqual(
+      ['run'],
+    )
+    const before = buildArrayBlocks(anchored, [ARRAY])[0]!
+    const after = buildArrayBlocks(normal, [ARRAY])[0]!
+    expect(Object.fromEntries(after.copiesByName)).toEqual(
+      Object.fromEntries(before.copiesByName),
+    )
+    expect(Object.fromEntries(after.lengthByName)).toEqual(
+      Object.fromEntries(before.lengthByName),
+    )
+    expect(Object.fromEntries(after.rowByName)).toEqual(
+      Object.fromEntries(before.rowByName),
+    )
   })
 })

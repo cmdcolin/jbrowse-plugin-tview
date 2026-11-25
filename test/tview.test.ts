@@ -154,6 +154,72 @@ describe('buildTviewMsa', () => {
     })
   })
 
+  it('merges equivalent placements of one insertion into one site', () => {
+    // both reads spell TTTT CACACACA GGGG; the aligner anchored the extra CA at
+    // either end of a run too short to be a tandem array
+    const sequence = 'TTTTCACACAGGGG'
+    const { msa, insertionWidths, arrays } = buildTviewMsa({
+      features: [
+        feature({
+          name: 'left',
+          start: 0,
+          CIGAR: '4M2I10M',
+          seq: 'TTTTCACACACAGGGG',
+        }),
+        feature({
+          name: 'right',
+          start: 0,
+          CIGAR: '10M2I4M',
+          seq: 'TTTTCACACACAGGGG',
+        }),
+      ],
+      refName: 'ctgA',
+      start: 0,
+      end: sequence.length,
+      sequence,
+    })
+    expect(arrays).toEqual([])
+    expect(insertionWidths).toEqual([[4, 2]])
+    const byName = Object.fromEntries(rows(msa))
+    expect(byName.left).toBe(byName.right)
+    expect(byName.left).toBe('TTTTCACACACAGGGG')
+  })
+
+  it('renders identical rows for one 250bp insertion with a base missing', () => {
+    let state = 1
+    let inserted = ''
+    while (inserted.length < 250) {
+      state = (state * 48271) % 2147483647
+      inserted += 'ACGT'[Math.floor((state / 2147483647) * 4)]
+    }
+    const shorter = inserted.slice(0, 120) + inserted.slice(121)
+    const { msa } = buildTviewMsa({
+      features: [
+        feature({
+          name: 'r1',
+          start: 0,
+          CIGAR: `2M${inserted.length}I2M`,
+          seq: `AA${inserted}TT`,
+        }),
+        feature({
+          name: 'r2',
+          start: 0,
+          CIGAR: `2M${shorter.length}I2M`,
+          seq: `AA${shorter}TT`,
+        }),
+      ],
+      refName: 'ctgA',
+      start: 0,
+      end: 4,
+    })
+    const [[, a], [, b]] = rows(msa)
+    let differing = ''
+    for (let i = 0; i < a!.length; i++) {
+      differing += a![i] === b![i] ? '' : a![i]
+    }
+    expect(differing).toBe(inserted[120])
+  })
+
   it('distinguishes skipped reference from deleted reference', () => {
     const { msa } = buildTviewMsa({
       features: [
