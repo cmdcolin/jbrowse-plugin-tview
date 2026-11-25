@@ -12,19 +12,12 @@ const PORT = process.env.PORT ? +process.env.PORT : 9000
 // Plugins must reuse the React/MUI/mobx instances JBrowse already loaded via
 // window.JBrowseExports — bundling a second copy causes duplicate-React errors.
 function createGlobalMap(jbrowseGlobals) {
-  return {
-    ...Object.fromEntries(
-      jbrowseGlobals.map(g => [
-        g,
-        { varName: `JBrowseExports["${g}"]`, type: 'cjs' },
-      ]),
-    ),
-    // v4+ package name, but JBrowse exports it as 'mobx-state-tree' for back-compat
-    '@jbrowse/mobx-state-tree': {
-      varName: `JBrowseExports["mobx-state-tree"]`,
-      type: 'cjs',
-    },
-  }
+  return Object.fromEntries(
+    jbrowseGlobals.map(g => [
+      g,
+      { varName: `JBrowseExports["${g}"]`, type: 'cjs' },
+    ]),
+  )
 }
 
 const rebuildLogPlugin = {
@@ -47,24 +40,16 @@ const rebuildLogPlugin = {
   },
 }
 
-// @mui/material/SvgIcon's exported SHAPE differs across the MUI majors that
-// hosts bundle: released hosts (MUI 7) expose it as the SvgIcon component
-// itself ($$typeof, render, displayName), while MUI 9 also hangs
-// createSvgIcon off it, which @mui/icons-material v9 calls. Externalizing it
-// means the bundle throws "createSvgIcon is not a function" while
-// evaluating, so its global is never defined and PluginLoader's Promise.all
-// rejects, error-paging every host (see jbrowse-plugin-msaview 2.7.0/2.7.1).
-// Bundling it instead works on both MUI generations.
-const SHAPE_VARIES_BY_HOST = new Set(['@mui/material/SvgIcon'])
-const globals = JBrowseReExports.filter(x => !SHAPE_VARIES_BY_HOST.has(x))
-
 const config = {
   entryPoints: ['src/index.ts'],
   bundle: true,
   // JBrowse reads this off window after the UMD script loads
   globalName: 'JBrowsePluginTView',
   metafile: true,
-  plugins: [globalExternals(createGlobalMap(globals)), rebuildLogPlugin],
+  plugins: [
+    globalExternals(createGlobalMap(JBrowseReExports)),
+    rebuildLogPlugin,
+  ],
   ...(isWatch
     ? { outfile: 'dist/out.js' }
     : {
