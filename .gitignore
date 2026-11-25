@@ -16,4 +16,5 @@ test-screenshots/
 .test-jbrowse*/
 # the throwaway config `report:repeats --figure` writes for the browser
 .figure.json
+public/config.e2e-*.json
 .vscode

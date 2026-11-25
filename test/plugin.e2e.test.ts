@@ -7,10 +7,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { ChildProcess } from 'node:child_process'
 import type { Browser, Page } from 'puppeteer'
 
-// must match the plugin url in public/config.json
-const PORT = 9000
+// public/config.json names the plugin at 9000; another port gets a copy of the
+// config that names it there, so two checkouts can run this suite at once
+const DEFAULT_PORT = 9000
+const PORT = process.env.E2E_PORT ? +process.env.E2E_PORT : DEFAULT_PORT
+const CONFIG =
+  PORT === DEFAULT_PORT ? 'config.json' : `config.e2e-${PORT}.json`
 const INSTANCE = process.env.TEST_JBROWSE_DIR ?? '.test-jbrowse'
-const URL = `http://localhost:${PORT}/${INSTANCE}/index.html?config=../public/config.json`
+const URL = `http://localhost:${PORT}/${INSTANCE}/index.html?config=../public/${CONFIG}`
 const SHOTS = 'test-screenshots'
 
 let browser: Browser
@@ -36,6 +40,14 @@ beforeAll(async () => {
     )
   }
   fs.mkdirSync(SHOTS, { recursive: true })
+  if (PORT !== DEFAULT_PORT) {
+    fs.writeFileSync(
+      `public/${CONFIG}`,
+      fs
+        .readFileSync('public/config.json', 'utf8')
+        .replaceAll(`localhost:${DEFAULT_PORT}`, `localhost:${PORT}`),
+    )
+  }
   // serving the plugin bundle and the jbrowse instance from the repo root puts
   // both on one origin, so no cross-origin plugin loading is involved
   server = spawn('node', ['esbuild.mjs', '--watch'], {
