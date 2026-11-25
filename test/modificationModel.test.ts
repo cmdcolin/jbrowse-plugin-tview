@@ -5,11 +5,11 @@ import { fakeSession } from './fakeSession'
 import { fetchTviewPlan } from '../src/LaunchTView/fetchTviewPlan'
 import { REFERENCE } from '../src/LaunchTView/tview'
 import stateModelFactory from '../src/TViewPanel/model'
-import { MODIFICATION_FILL } from '../src/TViewPanel/modifications'
+import { MODIFICATION_MARK } from '../src/TViewPanel/modifications'
 
 import type { TviewPlanResult } from '../src/LaunchTView/TviewGetPlanRpc/TviewGetPlan'
 import type { TviewModifications } from '../src/LaunchTView/modifications'
-import type { Encoding } from 'react-msaview'
+import type { AlignmentMarkSpec } from 'react-msaview'
 
 const session = vi.hoisted(() => ({ current: {} }))
 
@@ -109,7 +109,7 @@ describe('a load whose reads carry base modifications', () => {
         attributes: { probability: '5' },
       },
     ])
-    expect(model.encodings).toEqual([MODIFICATION_FILL])
+    expect(model.marks).toEqual([MODIFICATION_MARK])
   })
 
   it('keeps the calls out of the snapshot', async () => {
@@ -118,9 +118,9 @@ describe('a load whose reads carry base modifications', () => {
     expect(snapshot).not.toContain('5mC')
   })
 
-  it('keeps a fill encoding the view already has', async () => {
+  it('keeps the marks the view already has', async () => {
     fetchPlan.mockResolvedValue(plan(MODIFICATIONS))
-    const own: Encoding = { channel: 'featureFill', field: 'name' }
+    const own: AlignmentMarkSpec[] = [{ kind: 'features', height: 3 }]
     const model = stateModelFactory().create({
       type: 'TView',
       id: 'tview1',
@@ -129,27 +129,25 @@ describe('a load whose reads carry base modifications', () => {
         loc: 'ctgA:101..106',
         tracks: ['volvox_bam'],
       },
-      encodings: [own],
+      marks: own,
     })
     await new Promise(r => setTimeout(r, 0))
-    expect(model.encodings).toEqual([own])
+    expect(model.marks).toEqual(own)
   })
 
-  it('colours by bases, and switches to colouring by modification', async () => {
+  it('fills each call over the base colours, and can drop the base colours', async () => {
     fetchPlan.mockResolvedValue(plan(MODIFICATIONS))
     const model = await loaded()
-    expect(model.residueColor.field).toBe('residue')
+    expect(model.cellFill).toBe('residue')
     expect(
       modificationItems(model)?.map(i => ('label' in i ? i.label : '')),
-    ).toEqual(['Color by bases', 'Color by modification'])
-    click(model, 'Color by modification')
-    expect(model.resolvedResidueColor.field).toBe('feature')
+    ).toEqual(['Over base colors', 'Without base colors'])
+    click(model, 'Without base colors')
+    expect(model.cellFill).toBe('domain')
     expect(model.resolvedResidueColor.scheme).toBe('jbrowse_dna')
-    click(model, 'Color by bases')
-    expect(model.residueColor).toEqual({
-      field: 'residue',
-      scale: { scheme: 'jbrowse_dna' },
-    })
+    click(model, 'Over base colors')
+    expect(model.cellFill).toBe('residue')
+    expect(model.residueColor).toEqual({})
   })
 
   it('says how many calls it could not show', async () => {
@@ -171,6 +169,6 @@ describe('a load without base modifications', () => {
     const model = await loaded()
     expect(modificationItems(model)).toBeUndefined()
     expect(model.annotations).toEqual([])
-    expect(model.encodings).toEqual([])
+    expect(model.marks).toBeUndefined()
   })
 })

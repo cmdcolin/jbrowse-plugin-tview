@@ -152,8 +152,6 @@ const MODIFICATIONS = {
   loc: '20:13,226..13,275',
   tracks: ['methylation_clip'],
   colWidth: 16,
-  // band labels are cut short above 16px rows, and 16 itself is taken as unset
-  // and replaced
   rowHeight: 15,
   minRowsPerColumn: 1,
   from: 'tview',
@@ -183,7 +181,7 @@ export const LOCAL_FIGURES = [
     out: 'img/tview-modifications.png',
     view: {
       treeAreaWidth: 220,
-      residueColor: { field: 'feature', scale: { scheme: 'jbrowse_dna' } },
+      residueColor: { field: 'feature' },
     },
   },
   {

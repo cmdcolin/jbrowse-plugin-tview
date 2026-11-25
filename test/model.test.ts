@@ -112,12 +112,29 @@ describe('a view from a bare init', () => {
   it('reads every row against the reference, in DNA colours', async () => {
     const model = await loaded()
     expect(model.relativeTo).toBe(REFERENCE)
-    expect(model.residueColor).toEqual({
+    expect(model.resolvedResidueColor).toMatchObject({
+      channel: 'fill',
       field: 'residue',
-      scale: { scheme: 'jbrowse_dna' },
+      scheme: 'jbrowse_dna',
     })
     expect(model.rowHeight).toBe(12)
     expect(model.labelsAlignRight).toBe(true)
+  })
+
+  it('writes none of its defaults into the snapshot, and keeps a value the reader set', async () => {
+    const snapshot = getSnapshot(await loaded())
+    expect(snapshot).not.toHaveProperty('rowHeight')
+    expect(snapshot).not.toHaveProperty('labelsAlignRight')
+    expect(snapshot).not.toHaveProperty('residueColor')
+    const model = await loaded({ rowHeight: 16, labelsAlignRight: false })
+    expect(model.rowHeight).toBe(16)
+    expect(model.labelsAlignRight).toBe(false)
+  })
+
+  it('numbers the reference row in the genome’s coordinates', async () => {
+    expect((await loaded()).rowCoordinates).toEqual([
+      { row: REFERENCE, start: 101, name: 'ctgA' },
+    ])
   })
 
   it('fits the column width to the column count', async () => {
@@ -138,23 +155,30 @@ describe('a view from a bare init', () => {
 })
 
 describe('the bracket highlights', () => {
-  it('replaces the ones a load made and keeps the reader’s own', async () => {
+  const brackets = (model: ReturnType<typeof view>) =>
+    model.highlightTrackModels.flatMap(t => t.model.bands?.map(b => b.label))
+
+  it('draws a load’s brackets without keeping them in the snapshot', async () => {
     const own = { start: 1, end: 2, label: 'mine' }
     const model = await loaded({ highlights: [own] })
-    expect(model.highlights).toEqual([own, ...handBuilt().highlights])
+    expect(model.highlights).toEqual([own])
+    expect(brackets(model)).toEqual(handBuilt().highlights.map(h => h.label))
 
-    const next = handBuilt({
-      highlights: [{ start: 5, end: 5, label: 'next', mark: 'bracket' }],
-    })
-    fetchPlan.mockResolvedValue(next)
+    fetchPlan.mockResolvedValue(
+      handBuilt({
+        highlights: [{ start: 5, end: 5, label: 'next', mark: 'bracket' }],
+      }),
+    )
     model.setInit({ ...model.init!, loc: 'ctgA:102..111' })
     await new Promise(r => setTimeout(r, 0))
-    expect(model.highlights).toEqual([own, ...next.highlights])
+    expect(model.highlights).toEqual([own])
+    expect(brackets(model)).toEqual(['next'])
   })
 
-  it('does not double the ones a restored snapshot carries', async () => {
+  it('drops the copies a session saved by 3.0.0 carries', async () => {
     const model = await loaded({ highlights: handBuilt().highlights })
-    expect(model.highlights).toEqual(handBuilt().highlights)
+    expect(model.highlights).toEqual([])
+    expect(brackets(model)).toEqual(handBuilt().highlights.map(h => h.label))
   })
 })
 

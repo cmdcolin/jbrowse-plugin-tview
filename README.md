@@ -67,18 +67,18 @@ down, each with its count as a bar and a number. [Live demo][tview-demo-abca7]
 <tr>
 <td width="50%" valign="top">
 
-<a href="img/tview-modifications-bases.png"><img src="img/tview-modifications-bases.png" width="380" alt="Nanopore reads with 5mC calls, coloured by bases, with a bar under each called base"></a>
+<a href="img/tview-modifications-bases.png"><img src="img/tview-modifications-bases.png" width="380" alt="Nanopore reads with 5mC calls, each called base filled from blue at 0% to red at 100%, over the base colours"></a>
 
-**Color by bases**: base colours, and a bar under each base with a modification
-call.
+**Over base colors**: each called base filled from blue (0%) to red (100%), and
+every other mismatch in its base colour.
 
 </td>
 <td width="50%" valign="top">
 
-<a href="img/tview-modifications.png"><img src="img/tview-modifications.png" width="380" alt="The same reads coloured by modification, from blue at 0% to red at 100%"></a>
+<a href="img/tview-modifications.png"><img src="img/tview-modifications.png" width="380" alt="The same reads with only the called bases filled"></a>
 
-**Color by modification**: each called base filled from blue (0%) to red (100%),
-one of them in an inserted column.
+**Without base colors**: only the called bases are filled, one of them in an
+inserted column.
 
 </td>
 </tr>
@@ -417,18 +417,20 @@ Three things about this figure are settings rather than data:
 
 When the reads carry MM/ML tags, the view places each read's most probable call
 at each base on that base, inserted bases included. Hovering a cell names the
-call, such as `5mC 97%`. The view's menu gains a **Base modifications** submenu:
+call, such as `5mC 97%`. Each called base is filled on a scale from blue (0%) to
+red (100%) of its call's probability, with a legend, and the view's menu gains a
+**Base modifications** submenu:
 
-- **Color by bases**, the default, keeps the base colours.
-- **Color by modification** fills each called base on a scale from blue (0%) to
-  red (100%) of its call's probability, with a legend.
+- **Over base colors**, the default, keeps the base colour of every mismatch
+  with no call. A mismatching T is red too, so a red cell is a call where it
+  holds a dot, a C or a G.
+- **Without base colors** fills the called bases and nothing else.
 
-![Nanopore reads with 5mC calls at 20:13,226..13,275, coloured by modification, with a called base in an insertion column](img/tview-modifications.png)
+![Nanopore reads with 5mC calls at 20:13,226..13,275, the called bases filled red over the base colours, one of them in an insertion column](img/tview-modifications-bases.png)
 
-Seven nanopore reads from `public/methylation_clip.bam`, coloured by
-modification. The red G in the second read sits in the column bracketed after
-20:13,243, a base the reference does not have; the read is on the reverse
-strand, so its called C reads as a G.
+Seven nanopore reads from `public/methylation_clip.bam`. The red G in the second
+read sits in the column bracketed after 20:13,243, a base the reference does not
+have; the read is on the reverse strand, so its called C reads as a G.
 
 The calls have limits:
 
@@ -472,6 +474,9 @@ The view stays connected to the genome view it came from:
   keeps it highlighted and moves the genome view there.
 - Hovering the genome view highlights that base of the reference row in the
   alignment.
+- The **Position** ruler above the alignment numbers the columns in the genome's
+  coordinates, and so do its tooltips and the **Go to row or column** box. A
+  column the reference has no base in, such as an inserted one, gets no tick.
 
 While it builds, the view says what it is waiting for. When it cannot load a
 region, it shows why in place of the alignment, with a retry button where
@@ -532,16 +537,6 @@ A JBrowse v5 host: `@jbrowse/core` 5.0.0 or later. No v5 is released yet (npm's
 [JBrowse Web nightly](https://jbrowse.org/code/jb2/main/) or a `5.0.0-beta`
 build from npm's `next` tag; this version was built and tested against
 5.0.0-beta.23.
-
-## Features react-msaview lacks
-
-This view would use two things react-msaview does not have yet:
-
-- **A ruler in genomic coordinates.** The position ruler, off by default,
-  numbers the reference row's own residues, so it counts from 1 at the start of
-  the window rather than from the chromosome position.
-- **Base colours under modification fills.** Coloured by modification, a cell
-  with no call loses its base colour, so a mismatch reads only as its letter.
 
 ## Development
 

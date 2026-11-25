@@ -498,7 +498,7 @@ describe('tview plugin in jbrowse-web', () => {
           numColumns: v.numColumns,
           rowTransform: v.rowTransform,
           rowPanels: v.rowPanels,
-          highlights: v.highlights,
+          brackets: v.transientHighlights['tview-load'],
           relativeTo: v.relativeTo,
           residueColor: v.residueColor,
           colWidth: v.colWidth,
@@ -542,7 +542,7 @@ describe('tview plugin in jbrowse-web', () => {
           numColumns: v.numColumns,
           rowTransform: v.rowTransform,
           rowPanels: v.rowPanels,
-          highlights: v.highlights,
+          brackets: v.transientHighlights['tview-load'],
           relativeTo: v.relativeTo,
           residueColor: v.residueColor,
           colWidth: v.colWidth,
@@ -577,7 +577,7 @@ describe('tview plugin in jbrowse-web', () => {
       const v = window.JBrowseSession.views.find(
         (x: { type: string }) => x.type === 'TView',
       )
-      const site = v.highlights.find(
+      const site = v.transientHighlights['tview-load'].find(
         (h: { label: string }) => h.label === '+1bp after ctgA:15,163',
       )
       const insCol = site.start - 1
@@ -638,10 +638,10 @@ describe('tview plugin in jbrowse-web', () => {
         tracks: v.turnedOnTracks.map(
           (t: { model: { id: string } }) => t.model.id,
         ),
-        brackets: v.highlights.filter(
+        brackets: v.transientHighlights['tview-load'].filter(
           (h: { mark?: string }) => h.mark === 'bracket',
         ).length,
-        residueColor: v.residueColor,
+        residueColor: v.resolvedResidueColor,
         colWidth: v.colWidth,
         rowTransform: v.rowTransform,
         bands: v.facetClades.map((c: { label?: string }) => c.label),
@@ -655,10 +655,11 @@ describe('tview plugin in jbrowse-web', () => {
     expect(state.relativeTo).toBe('reference')
     expect(state.tracks).toContain('reference-row')
     expect(state.tracks).toContain('highlight-brackets')
+    expect(state.tracks).toContain('position-ruler')
     expect(state.brackets).toBeGreaterThan(0)
-    expect(state.residueColor).toEqual({
+    expect(state.residueColor).toMatchObject({
       field: 'residue',
-      scale: { scheme: 'jbrowse_dna' },
+      scheme: 'jbrowse_dna',
     })
     expect(state.colWidth).toBe(10)
     expect(state.rowTransform).toEqual({
@@ -714,7 +715,7 @@ describe('tview plugin in jbrowse-web', () => {
       const v = window.JBrowseSession.views.find(
         (x: { type: string }) => x.type === 'TView',
       )
-      const site = v.highlights.find(
+      const site = v.transientHighlights['tview-load'].find(
         (h: { label: string }) => h.label === '+1bp after ctgA:15,163',
       )
       v.setMousePos(site.start - 1, 1)
@@ -774,7 +775,8 @@ describe('tview plugin in jbrowse-web', () => {
         (x: { type: string }) => x.type === 'TView',
       )
       const band = v.resolvedHighlights.find(
-        (h: { transient: boolean }) => h.transient,
+        (h: { transient: boolean; row?: string }) =>
+          h.transient && h.row === 'reference',
       )
       return {
         hovered: window.JBrowseSession.hovered.hoverPosition,
@@ -831,8 +833,8 @@ describe('tview plugin in jbrowse-web', () => {
         panels: v.rowPanels.map((p: { kind: string }) => p.kind),
         rows: v.rowNames.length,
         uniqueRows: new Set(v.rowNames).size,
-        arrayBracket: v.highlights.find((h: { label: string }) =>
-          h.label.endsWith(' in the reference'),
+        arrayBracket: v.transientHighlights['tview-load'].find(
+          (h: { label: string }) => h.label.endsWith(' in the reference'),
         )?.label,
       }
     })
@@ -1024,7 +1026,7 @@ describe('base modifications', () => {
         hoveredAnnotations: v.mouseOverDomains.map(
           (a: { description: string }) => a.description,
         ),
-        encodings: [...v.encodings],
+        marks: v.marks,
         field: v.resolvedResidueColor.field,
         menu: v
           .menuItems()
@@ -1043,11 +1045,11 @@ describe('base modifications', () => {
     })
     expect(state.hoveredAnnotations).toEqual([state.onInsertion.description])
     expect(state.onInsertion.description).toMatch(/^5mC \d+%$/)
-    expect(state.encodings).toMatchObject([
-      { channel: 'featureFill', field: 'probability' },
+    expect(state.marks).toMatchObject([
+      { kind: 'features', encoding: { fill: { field: 'probability' } } },
     ])
     expect(state.field).toBe('residue')
-    expect(state.menu).toEqual(['Color by bases', 'Color by modification'])
+    expect(state.menu).toEqual(['Over base colors', 'Without base colors'])
     expect(state.snapshotBytes).toBeLessThan(20_000)
 
     await page.waitForFunction(
@@ -1071,7 +1073,7 @@ describe('base modifications', () => {
     await page.setViewport({ width: 1400, height: height + 250 })
     await new Promise(r => setTimeout(r, 1000))
     const byBases = await canvasColors(page)
-    await screenshot(page, '09-modifications-by-bases')
+    await screenshot(page, '09-modifications-over-bases')
 
     await page.evaluate(() => {
       const v = window.JBrowseSession.views.find(
@@ -1080,7 +1082,7 @@ describe('base modifications', () => {
       v.menuItems()
         .find((i: { label: string }) => i.label === 'Base modifications')
         .subMenu.find(
-          (i: { label: string }) => i.label === 'Color by modification',
+          (i: { label: string }) => i.label === 'Without base colors',
         )
         .onClick()
     })
@@ -1093,7 +1095,7 @@ describe('base modifications', () => {
     )
     expect(field).toBe('feature')
     expect(await canvasColors(page)).not.toBe(byBases)
-    await screenshot(page, '10-modifications-by-modification')
+    await screenshot(page, '10-modifications-without-bases')
     expect(errors.filter(e => /TView|tview/i.test(e))).toEqual([])
     await page.close()
   }, 180_000)

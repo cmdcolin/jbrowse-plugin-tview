@@ -292,7 +292,7 @@ async function capture(page, figure, { port, config }) {
       rows,
       columns: view.rows[0]?.[1].length,
       hidden: view.blanks.length,
-      brackets: view.highlights.filter(h => h.mark === 'bracket').length,
+      brackets: (view.transientHighlights['tview-load'] ?? []).length,
       copyPanels: view.rowPanels.length,
       // react-msaview stops drawing residue letters below a cell size, and
       // does it silently, so ask the view what it is drawing

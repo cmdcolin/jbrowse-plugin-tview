@@ -20,6 +20,10 @@ the `@jbrowse/core` boundary (mst's types are nominal).
   it directly and the name through `getTrackName`.
 - An RPC method is entered in `RpcRegistry` by module augmentation beside its
   class, which is what types `rpcManager.call('TviewGetPlan', …)`.
+- What a load derives stays out of the snapshot: the brackets go through
+  `applyHighlight('tview-load', …)`, the calls through `setAnnotations`. Read
+  the brackets from `transientHighlights['tview-load']`, not `highlights`, which
+  holds only what a reader added.
 
 ## Figures
 
@@ -35,9 +39,11 @@ the `@jbrowse/core` boundary (mst's types are nominal).
 - A figure's `from` (`lgv` or `tview`) crops it to start at that view, and
   `hideGenomeHeader` hides the genome view's navigation bar for the screenshot
   only, so the demo link keeps it.
-- A view asking for react-msaview's default `colWidth` (12) or `rowHeight` (16)
-  does not get it: `setAlignment` treats a default as unset and fits the column
-  width and sets 12px rows. Ask for 13 or 15.
+- A view asking for a `colWidth` of 10 does not get it on an alignment wider
+  than 300 columns: 10 is the host default the model gives `MSAModelF`, and
+  `setAlignment` reads it as unset and fits the width. Every other default (12px
+  rows, right-aligned labels, DNA colours, the ruler on) is set the same way and
+  a session's own value is kept, 16px rows included.
 
 ## `typescript` is held at 6.x by eslint, not by this code
 
