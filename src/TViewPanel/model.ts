@@ -6,6 +6,7 @@ import { MSAModelF } from 'react-msaview'
 
 import { hoverPosition, lowerBound } from './genome'
 import { initRegion, initSources, missingTrackIds } from './init'
+import { tviewInitMenuItems } from './initMenu'
 import { fetchTviewPlan } from '../LaunchTView/fetchTviewPlan'
 import { MAX_CELLS } from '../LaunchTView/limits'
 import { REFERENCE } from '../LaunchTView/tview'
@@ -496,6 +497,7 @@ export default function stateModelFactory() {
         menuItems(): MenuItem[] {
           return [
             ...superMenuItems(),
+            ...tviewInitMenuItems(self),
             {
               label: 'Zoom to base level on click?',
               type: 'checkbox',

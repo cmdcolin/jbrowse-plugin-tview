@@ -231,3 +231,73 @@ describe('the genome hover', () => {
     expect(model.connectedHighlights).toEqual([])
   })
 })
+
+describe('the view menu', () => {
+  function connect(tracks: string[], start: number, end: number) {
+    session.current = {
+      ...fakeSession(['volvox_bam', 'volvox_bam_again']),
+      views: [
+        {
+          id: 'lgv',
+          tracks: tracks.map(trackId => ({
+            configuration: { trackId },
+            displays: [{ type: 'LinearAlignmentsDisplay' }],
+          })),
+          visibleWholeBaseRegions: [
+            { assemblyName: 'volvox', refName: 'ctgA', start, end },
+          ],
+        },
+      ],
+      hovered: undefined,
+    }
+  }
+
+  function item(model: ReturnType<typeof view>, label: string) {
+    const found = model.menuItems().find(i => 'label' in i && i.label === label)
+    return found && 'onClick' in found ? found : undefined
+  }
+
+  function subMenu(model: ReturnType<typeof view>, label: string) {
+    const found = model.menuItems().find(i => 'label' in i && i.label === label)
+    return found && 'subMenu' in found && Array.isArray(found.subMenu)
+      ? found.subMenu
+      : []
+  }
+
+  it('reloads over the connected view’s region', async () => {
+    connect(['volvox_bam'], 200, 300)
+    const model = await loaded()
+    item(model, "Show the connected view's current region")?.onClick()
+    await new Promise(r => setTimeout(r, 0))
+    expect(model.init?.loc).toBe('ctgA:201..300')
+    expect(fetchPlan).toHaveBeenCalledTimes(2)
+    expect(fetchPlan.mock.calls[1]![0].region).toEqual({
+      assemblyName: 'volvox',
+      refName: 'ctgA',
+      start: 200,
+      end: 300,
+    })
+  })
+
+  it('reloads with a track ticked in its Tracks submenu', async () => {
+    connect(['volvox_bam', 'volvox_bam_again'], 100, 110)
+    const model = await loaded()
+    const row = subMenu(model, 'Tracks')[1]
+    expect(row).toMatchObject({ label: 'volvox_bam_again.bam', checked: false })
+    if (row && 'onClick' in row) {
+      row.onClick()
+    }
+    await new Promise(r => setTimeout(r, 0))
+    expect(fetchPlan).toHaveBeenCalledTimes(2)
+    expect(
+      fetchPlan.mock.calls[1]![0].sources.map(source => source.trackId),
+    ).toEqual(['volvox_bam', 'volvox_bam_again'])
+  })
+
+  it('says there is no region to show without a connected genome view', async () => {
+    const model = await loaded()
+    expect(
+      item(model, "Show the connected view's current region"),
+    ).toMatchObject({ disabled: true, subLabel: 'No connected genome view' })
+  })
+})

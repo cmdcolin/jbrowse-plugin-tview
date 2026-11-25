@@ -47,8 +47,7 @@
     "name": "TView"
   },
   "dependencies": {
-    "@emotion/styled": "^11.14.1",
-    "swr": "^2.5.1"
+    "@emotion/styled": "^11.14.1"
   },
   "devDependencies": {
     "@emotion/react": "^11.14.0",

@@ -143,27 +143,36 @@ async function screenshot(page: Page, name: string) {
   await page.screenshot({ path: `${SHOTS}/${name}.png` })
 }
 
-/**
- * Submits the launch dialog, once its preview has resolved.
- *
- * Waiting on the button is waiting on the condition itself — Submit is disabled
- * until the plan comes back — where waiting on the sentence beside it waits on
- * the dialog's wording. That sentence was reworded, and these two tests then
- * spent sixty seconds each looking for a phrase nothing prints any more.
- */
-async function submitDialog(page: Page) {
-  await page.waitForFunction(
-    () =>
-      [...document.querySelectorAll('button')].some(
-        b => b.textContent.trim() === 'Submit' && !b.disabled,
-      ),
-    { timeout: 60_000 },
+const TRACK_MENU_LABEL = 'Launch tview for visible region'
+
+/** clicks the alignments track's launch item, which opens the view directly */
+async function launchFromTrackMenu(page: Page) {
+  await page.evaluate(label => {
+    window.JBrowseSession.views[0].tracks[0].displays[0]
+      .trackMenuItems()
+      .find((i: { label: string }) => i.label === label)
+      .onClick()
+  }, TRACK_MENU_LABEL)
+}
+
+/** the tview's view menu item with this label, or a row of its submenu */
+async function clickTViewMenuItem(page: Page, label: string, row?: string) {
+  await page.evaluate(
+    (label, row) => {
+      const v = window.JBrowseSession.views.find(
+        (x: { type: string }) => x.type === 'TView',
+      )
+      const item = v
+        .menuItems()
+        .find((i: { label: string }) => i.label === label)
+      const target = row
+        ? item.subMenu.find((i: { label: string }) => i.label === row)
+        : item
+      target.onClick()
+    },
+    label,
+    row,
   )
-  await page.evaluate(() => {
-    ;[...document.querySelectorAll('button')]
-      .find(b => b.textContent.trim() === 'Submit')
-      ?.click()
-  })
 }
 
 describe('dev server', () => {
@@ -216,40 +225,251 @@ describe('tview plugin in jbrowse-web', () => {
       }
     })
     expect(menu.displayType).toBe('LinearAlignmentsDisplay')
-    expect(menu.labels).toContain('Launch tview for visible region')
+    expect(menu.labels).toContain(TRACK_MENU_LABEL)
     await page.close()
   }, 180_000)
 
-  it('opens the launch dialog for the visible region', async () => {
-    const { page } = await openJBrowse()
+  it('opens a loaded view for the visible region from the track menu, with no dialog', async () => {
+    const { page, errors } = await openJBrowse()
     await waitForDisplay(page)
-    await page.evaluate(() => {
-      const display = window.JBrowseSession.views[0].tracks[0].displays[0]
-      display
-        .trackMenuItems()
-        .find(
-          (i: { label: string }) =>
-            i.label === 'Launch tview for visible region',
-        )
-        .onClick()
-    })
-    await page.waitForFunction(
-      () => /samtools tview/i.test(document.body.innerText),
-      { timeout: 30_000 },
-    )
-    // the exact end depends on how the view snaps bp to the pixel grid, so
-    // derive it the way the dialog does rather than pinning a literal
-    const { text, expected } = await page.evaluate(() => {
-      const b = window.JBrowseSession.views[0].dynamicBlocks.contentBlocks[0]
+    await launchFromTrackMenu(page)
+    await waitForTView(page)
+    const state = await page.evaluate(() => {
+      const session = window.JBrowseSession
+      const lgv = session.views[0]
+      const v = session.views.find((x: { type: string }) => x.type === 'TView')
+      const [r] = lgv.visibleWholeBaseRegions
       const n = (x: number) => x.toLocaleString('en-US')
       return {
-        text: document.body.innerText,
-        expected: `${b.refName}:${n(Math.floor(b.start) + 1)}..${n(Math.ceil(b.end))}`,
+        expectedLoc: `${r.refName}:${n(r.start + 1)}..${n(r.end)}`,
+        init: v.init,
+        displayName: v.displayName,
+        connectedViewId: v.connectedViewId,
+        lgvId: lgv.id,
+        state: v.viewState.kind,
+        dialogs: document.querySelectorAll('[role="dialog"]').length,
       }
     })
-    expect(expected).toMatch(/^ctgA:1,000\.\./)
-    expect(text).toContain(expected)
-    await screenshot(page, '02-dialog')
+    expect(state.expectedLoc).toMatch(/^ctgA:1,000\.\./)
+    expect(state.init).toEqual({
+      assembly: 'volvox',
+      loc: state.expectedLoc,
+      tracks: ['volvox_bam'],
+    })
+    expect(state.displayName).toBe(state.expectedLoc)
+    expect(state.connectedViewId).toBe(state.lgvId)
+    expect(state.state).toBe('alignment')
+    expect(state.dialogs).toBe(0)
+    expect(errors.filter(e => /TView|tview/i.test(e))).toEqual([])
+    await screenshot(page, '02-track-menu-launch')
+    await page.close()
+  }, 180_000)
+
+  it('disables the track menu item, saying why, when zoomed out past the limit', async () => {
+    const { page } = await openJBrowse()
+    await waitForDisplay(page)
+    await page.evaluate(async () => {
+      await window.JBrowseSession.views[0].navToLocString(
+        'ctgA:1..40000',
+        'volvox',
+      )
+    })
+    const item = await page.evaluate(label => {
+      const { disabled, subLabel } =
+        window.JBrowseSession.views[0].tracks[0].displays[0]
+          .trackMenuItems()
+          .find((i: { label: string }) => i.label === label)
+      return { disabled, subLabel }
+    }, TRACK_MENU_LABEL)
+    expect(item.disabled).toBe(true)
+    expect(item.subLabel).toMatch(
+      /^Region is [\d,]+bp, wider than the 20,000bp limit$/,
+    )
+    await page.close()
+  }, 180_000)
+
+  it('launches over a dragged-out region with every open alignments track', async () => {
+    const { page, errors } = await openJBrowse()
+    await waitForDisplay(page)
+    await page.evaluate(async () => {
+      const lgv = window.JBrowseSession.views[0]
+      lgv.showTrack('volvox_bam_again')
+      await lgv.navToLocString('ctgA:7500..7700', 'volvox')
+    })
+    await page.waitForFunction(
+      () => !!window.JBrowseSession.views[0].tracks[1]?.displays[0],
+      { timeout: 90_000 },
+    )
+    const drag = await page.evaluate(() => {
+      const lgv = window.JBrowseSession.views[0]
+      const box = document
+        .querySelector(
+          `[data-testid="linear-genome-view-${lgv.id}"] [data-testid="rubberband_controls"]`,
+        )!
+        .getBoundingClientRect()
+      const x = (coord: number) =>
+        box.left +
+        lgv.bpToPx({ refName: 'ctgA', coord }).offsetPx -
+        lgv.offsetPx
+      return { from: x(7560), to: x(7650), y: box.top + box.height / 2 }
+    })
+    await page.mouse.move(drag.from, drag.y)
+    await page.mouse.down()
+    await page.mouse.move((drag.from + drag.to) / 2, drag.y, { steps: 5 })
+    await page.mouse.move(drag.to, drag.y, { steps: 5 })
+    await page.mouse.up()
+
+    const menuItem = (text: string) =>
+      page.waitForFunction(
+        t =>
+          [...document.querySelectorAll('[role="menuitem"]')].find(
+            el => el.textContent.trim() === t,
+          ),
+        { timeout: 30_000 },
+        text,
+      )
+    const launch = await menuItem('Launch')
+    await launch.asElement()!.hover()
+    const entry = await menuItem('Tview of all alignments tracks')
+    await entry.asElement()!.click()
+    await waitForTView(page)
+
+    const state = await page.evaluate(() => {
+      const v = window.JBrowseSession.views.find(
+        (x: { type: string }) => x.type === 'TView',
+      )
+      return {
+        init: v.init,
+        displayName: v.displayName,
+        loadedRegion: v.loadedRegion,
+        bands: v.facetClades.map((c: { label?: string }) => c.label),
+      }
+    })
+    expect(state.init.tracks).toEqual(['volvox_bam', 'volvox_bam_again'])
+    expect(state.displayName).toBe(state.init.loc)
+    expect(state.loadedRegion.refName).toBe('ctgA')
+    expect(Math.abs(state.loadedRegion.start - 7559)).toBeLessThanOrEqual(3)
+    expect(Math.abs(state.loadedRegion.end - 7650)).toBeLessThanOrEqual(3)
+    expect(state.bands).toEqual([
+      'reference',
+      'volvox-sorted.bam',
+      'volvox-sorted.bam again',
+    ])
+    expect(errors.filter(e => /TView|tview/i.test(e))).toEqual([])
+    await screenshot(page, '09-rubberband-launch')
+    await page.close()
+  }, 180_000)
+
+  it('adds a second sample band from the view menu’s Tracks submenu', async () => {
+    const { page, errors } = await openJBrowse()
+    await waitForDisplay(page)
+    await page.evaluate(() => {
+      window.JBrowseSession.views[0].showTrack('volvox_bam_again')
+    })
+    await launchFromTrackMenu(page)
+    await waitForTView(page)
+    const before = await page.evaluate(() => {
+      const v = window.JBrowseSession.views.find(
+        (x: { type: string }) => x.type === 'TView',
+      )
+      const tracks = v
+        .menuItems()
+        .find((i: { label: string }) => i.label === 'Tracks')
+        .subMenu.map(
+          (i: { label: string; checked: boolean; disabled: boolean }) => [
+            i.label,
+            i.checked,
+            i.disabled,
+          ],
+        )
+      return { tracks, bands: v.facetClades.length }
+    })
+    expect(before.tracks).toEqual([
+      ['volvox-sorted.bam', true, true],
+      ['volvox-sorted.bam again', false, false],
+    ])
+    await clickTViewMenuItem(page, 'Tracks', 'volvox-sorted.bam again')
+    await page.waitForFunction(
+      () =>
+        window.JBrowseSession.views.find(
+          (x: { type: string }) => x.type === 'TView',
+        )?.facetClades.length === 3,
+      { timeout: 60_000 },
+    )
+    const after = await page.evaluate(() => {
+      const v = window.JBrowseSession.views.find(
+        (x: { type: string }) => x.type === 'TView',
+      )
+      return {
+        tracks: v.init.tracks,
+        bands: v.facetClades.map((c: { label?: string }) => c.label),
+      }
+    })
+    expect(after.tracks).toEqual(['volvox_bam', 'volvox_bam_again'])
+    expect(after.bands).toEqual([
+      'reference',
+      'volvox-sorted.bam',
+      'volvox-sorted.bam again',
+    ])
+    expect(errors.filter(e => /TView|tview/i.test(e))).toEqual([])
+    await page.close()
+  }, 180_000)
+
+  it('re-points the view at the genome view’s region from its menu', async () => {
+    const { page, errors } = await openJBrowse()
+    await waitForDisplay(page)
+    await launchFromTrackMenu(page)
+    await waitForTView(page)
+    await page.evaluate(async () => {
+      await window.JBrowseSession.views[0].navToLocString(
+        'ctgA:15100..15250',
+        'volvox',
+      )
+    })
+    await clickTViewMenuItem(page, "Show the connected view's current region")
+    await page.waitForFunction(
+      () =>
+        window.JBrowseSession.views.find(
+          (x: { type: string }) => x.type === 'TView',
+        )?.loadedRegion?.start > 15000,
+      { timeout: 60_000 },
+    )
+    const state = await page.evaluate(() => {
+      const session = window.JBrowseSession
+      const v = session.views.find((x: { type: string }) => x.type === 'TView')
+      const [r] = session.views[0].visibleWholeBaseRegions
+      return {
+        loadedRegion: v.loadedRegion,
+        visible: { refName: r.refName, start: r.start, end: r.end },
+        tracks: v.init.tracks,
+        state: v.viewState.kind,
+      }
+    })
+    expect(state.loadedRegion).toEqual(state.visible)
+    expect(state.tracks).toEqual(['volvox_bam'])
+    expect(state.state).toBe('alignment')
+
+    await page.evaluate(async () => {
+      await window.JBrowseSession.views[0].navToLocString(
+        'ctgA:1..40000',
+        'volvox',
+      )
+    })
+    const disabled = await page.evaluate(() => {
+      const v = window.JBrowseSession.views.find(
+        (x: { type: string }) => x.type === 'TView',
+      )
+      const { disabled, subLabel } = v
+        .menuItems()
+        .find(
+          (i: { label: string }) =>
+            i.label === "Show the connected view's current region",
+        )
+      return { disabled, subLabel }
+    })
+    expect(disabled.disabled).toBe(true)
+    expect(disabled.subLabel).toMatch(/wider than the 20,000bp limit/)
+    expect(errors.filter(e => /TView|tview/i.test(e))).toEqual([])
     await page.close()
   }, 180_000)
 
@@ -262,16 +482,7 @@ describe('tview plugin in jbrowse-web', () => {
         'volvox',
       )
     })
-    await page.evaluate(() => {
-      window.JBrowseSession.views[0].tracks[0].displays[0]
-        .trackMenuItems()
-        .find(
-          (i: { label: string }) =>
-            i.label === 'Launch tview for visible region',
-        )
-        .onClick()
-    })
-    await submitDialog(page)
+    await launchFromTrackMenu(page)
     await waitForTView(page)
 
     const built = await page.evaluate(() => {
@@ -302,9 +513,8 @@ describe('tview plugin in jbrowse-web', () => {
     expect(built.snapshot.init.assembly).toBe('volvox')
     // the end depends on how the view snapped bp to the pixel grid
     expect(built.snapshot.init.loc).toMatch(/ctgA:1\.\./)
-    expect(built.snapshot.init.tracks).toEqual([
-      { trackId: 'volvox_bam', sample: 'volvox-sorted.bam' },
-    ])
+    expect(built.snapshot.init.tracks).toEqual(['volvox_bam'])
+    expect(built.snapshot.displayName).toBe(built.snapshot.init.loc)
 
     // recreating the view from that snapshot is what a reload does to it
     const rowsImmediately = await page.evaluate(snapshot => {
@@ -360,16 +570,7 @@ describe('tview plugin in jbrowse-web', () => {
         'volvox',
       )
     })
-    await page.evaluate(() => {
-      window.JBrowseSession.views[0].tracks[0].displays[0]
-        .trackMenuItems()
-        .find(
-          (i: { label: string }) =>
-            i.label === 'Launch tview for visible region',
-        )
-        .onClick()
-    })
-    await submitDialog(page)
+    await launchFromTrackMenu(page)
     await waitForTView(page)
 
     const tv = await page.evaluate(() => {
@@ -431,6 +632,7 @@ describe('tview plugin in jbrowse-web', () => {
         (x: { type: string }) => x.type === 'TView',
       )
       return {
+        displayName: v.displayName,
         firstRow: v.rowNames[0],
         relativeTo: v.relativeTo,
         tracks: v.turnedOnTracks.map(
@@ -448,6 +650,7 @@ describe('tview plugin in jbrowse-web', () => {
         menuLabels: v.menuItems().map((i: { label: string }) => i.label),
       }
     })
+    expect(state.displayName).toBe('ctgA:15100..15250')
     expect(state.firstRow).toBe('reference')
     expect(state.relativeTo).toBe('reference')
     expect(state.tracks).toContain('reference-row')

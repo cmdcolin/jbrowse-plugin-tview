@@ -23,9 +23,9 @@ export type TviewTrackInit = string | { trackId: string; sample?: string }
  * - A session can **author** a tview. `{ type: 'TView', init: { … } }` in a
  *   defaultSession opens one with no click path — as does the flat form of the
  *   same keys in a session spec URL, which is what makes a repeat locus a link.
- * - There is one code path. Launching from the track menu, restoring a saved
- *   session and following a link all end up applying the same blob, so the
- *   launch dialog does not build the view — it names it.
+ * - There is one code path. Launching from a menu, restoring a saved session
+ *   and following a link all end up applying the same blob, and changing what
+ *   the view shows from its own menu is replacing that blob.
  *
  * Unlike LinearGenomeView's, this init is **kept, not cleared**. What it
  * resolves to — the alignment and its row table — is kept out of snapshots and
@@ -40,16 +40,6 @@ export interface TviewInit {
   /** the alignment files to draw rows from, in order */
   tracks: TviewTrackInit[]
 }
-
-// Derived from the interface so it cannot drift: the Record requires exactly one
-// entry per key, so adding a field without listing it here is a compile error
-// rather than a key that silently reads as a view prop.
-const initKeyMap: Record<keyof TviewInit, true> = {
-  assembly: true,
-  loc: true,
-  tracks: true,
-}
-export const initKeys = new Set<string>(Object.keys(initKeyMap))
 
 export type RegionCheck =
   | { region: FetchRegion; error?: undefined }
@@ -137,7 +127,7 @@ interface ResolvedTrack {
   sample: string
 }
 
-function entryTrackId(entry: TviewTrackInit) {
+export function entryTrackId(entry: TviewTrackInit) {
   return typeof entry === 'string' ? entry : entry.trackId
 }
 
@@ -155,6 +145,14 @@ function resolveTrack(
         sample: sample || getTrackName(conf, session) || trackId,
       }
     : undefined
+}
+
+/** what rows from `entry` are grouped under, or its trackId if no track has it */
+export function trackLabel(
+  session: AbstractSessionModel,
+  entry: TviewTrackInit,
+) {
+  return resolveTrack(session, entry)?.sample ?? entryTrackId(entry)
 }
 
 /**
