@@ -49,13 +49,10 @@ function handBuilt(overrides: Partial<TviewPlanResult> = {}): TviewPlanResult {
         mark: 'bracket',
       },
     ],
-    rowCount: 2,
     columnCount: REFERENCE_ROW.length,
     cellCount: 2 * REFERENCE_ROW.length,
     region: { refName: 'ctgA', start: 100, end: 110 },
-    arrays: [],
-    subjectIndex: 0,
-    referenceName: REFERENCE,
+    hasSubject: true,
     samples: ['HG002'],
     ...overrides,
   }
@@ -104,7 +101,7 @@ describe('a view from a bare init', () => {
   })
 
   it('keeps file order and draws no copy panel without a subject array', async () => {
-    fetchPlan.mockResolvedValue(handBuilt({ subjectIndex: undefined }))
+    fetchPlan.mockResolvedValue(handBuilt({ hasSubject: false }))
     const model = await loaded()
     expect(model.rowTransform).toEqual({
       facet: { field: 'sample', sort: [REFERENCE, 'HG002'] },

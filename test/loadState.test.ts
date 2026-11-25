@@ -25,11 +25,10 @@ function plan(msa: string): TviewPlanResult {
     msa,
     rowData: {},
     highlights: [],
-    rowCount: 1,
     columnCount: 4,
     cellCount: 4,
     region: { refName: 'ctgA', start: 0, end: 4 },
-    arrays: [],
+    hasSubject: false,
     samples: [],
   }
 }

@@ -362,7 +362,7 @@ export default function stateModelFactory() {
        * marked, and the defaults a view that has not set its own takes
        */
       setAlignment(result: TviewPlanResult) {
-        const bySubject = result.subjectIndex !== undefined
+        const bySubject = result.hasSubject
         const replaced = new Set(
           [...self.loadedHighlights, ...result.highlights].map(highlightKey),
         )

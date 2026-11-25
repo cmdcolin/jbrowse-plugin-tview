@@ -45,31 +45,17 @@ export interface TviewGetPlanArgs {
   maxCells: number
 }
 
-/** what crosses back: the alignment, and the numbers the dialog reports */
-export interface TviewArrayReport {
-  start: number
-  end: number
-  period: number
-  unit: string
-  width: number
-  /** per row: copies carried, and allele length in bp */
-  copies: [string, number][]
-  lengths: [string, number][]
-}
-
 export interface TviewPlanResult {
   msa: string
   /** per row name: its sample, and its copies and allele length at the subject */
   rowData: RowDataInput
   /** a bracket over each insertion site and each array block */
   highlights: Highlight[]
-  rowCount: number
   columnCount: number
   cellCount: number
   region: { refName: string; start: number; end: number }
-  arrays: TviewArrayReport[]
-  subjectIndex?: number
-  referenceName?: string
+  /** whether rows carry a copy count at a subject array */
+  hasSubject: boolean
   samples: string[]
   /** set when the alignment was over maxCells and `msa` is empty */
   tooLarge?: boolean
@@ -214,25 +200,12 @@ export default class TviewGetPlan extends RpcMethodType<'TviewGetPlan'> {
     })
 
     const shared = {
-      rowCount: plan.reads.length,
       columnCount: plan.layout.totalColumns,
       cellCount: plan.cellCount,
       rowData: planRowData(plan),
       highlights: planHighlights(plan),
       region: plan.region,
-      arrays: plan.arrays.map(a => ({
-        start: a.start,
-        end: a.end,
-        period: a.period,
-        unit: a.unit,
-        width: a.width,
-        copies: [...a.copiesByName.entries()],
-        lengths: [...a.lengthByName.entries()],
-      })),
-      subjectIndex: plan.subject
-        ? plan.arrays.indexOf(plan.subject)
-        : undefined,
-      referenceName: plan.referenceName,
+      hasSubject: plan.subject !== undefined,
       samples: plan.samples,
     }
 

@@ -39,12 +39,10 @@ function plan(modifications?: TviewModifications): TviewPlanResult {
     msa: `>${REFERENCE}\nACGTCA\n>read\nACGTCA\n`,
     rowData: { [REFERENCE]: { sample: REFERENCE }, read: { sample: 'HG002' } },
     highlights: [],
-    rowCount: 2,
     columnCount: 6,
     cellCount: 12,
     region: { refName: 'ctgA', start: 100, end: 106 },
-    arrays: [],
-    referenceName: REFERENCE,
+    hasSubject: false,
     samples: ['HG002'],
     ...(modifications ? { modifications } : {}),
   }
