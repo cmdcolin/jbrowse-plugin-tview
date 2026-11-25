@@ -23,7 +23,7 @@ Each picture opens full size, and the ones of the GIAB trio also open as a
 
 <a href="img/insertion-alu.png"><img src="img/insertion-alu.png" width="380" alt="An Alu insertion in HG002, as a JBrowse pileup above and a tview below"></a>
 
-An Alu insertion in HG002: a box per read in the pileup, 290 aligned columns in
+An Alu insertion in HG002: a box per read in the pileup, 294 aligned columns in
 the tview. [Live demo][tview-demo-alu]
 
 </td>
@@ -149,7 +149,7 @@ screenshot and the numbers are three renderings of one window.
 An Alu in an intron of NPHP4, in HG002's PacBio HiFi reads. JBrowse's pileup
 above draws each read's copy as a purple box labelled with its length, 282 to
 285bp in the reads on screen. The tview below aligns the copies to each other in
-290 columns, with the poly-A tail in green at the right-hand end, and the rows
+294 columns, with the poly-A tail in green at the right-hand end, and the rows
 without the insertion are blank across them. [Open this one
 live][tview-demo-alu].
 
@@ -178,6 +178,18 @@ sequences are aligned to each other:
   left through the read's own bases for as long as the read spells the same
   sequence, so reads carrying one event share one site. An insertion a tandem
   array owns stays where the array put it.
+- **Near-duplicate sites are merged.** Left-normalization only moves an
+  insertion where the read's bases allow it, so a read with a sequencing error
+  at the boundary, or one the aligner anchored a base or two off, keeps a site
+  of its own, and every other row gets a run of gaps as wide as the insertion.
+  An insertion of 10bp or more is moved to a site up to 25bp away that more
+  reads use, when its length is within 20% of theirs and the move adds at most
+  two mismatches against the reference to its row. The row still spells the
+  read; what changes is which of its bases count as inserted. At the Alu above,
+  one read has a base the others do not just before its copy, and the aligner
+  put the copy a base early, at a 287-column site of its own; it now joins the
+  other 21. Without the reference sequence nothing is merged, since there is
+  nothing to count a mismatch against.
 - **A read that does not span a site is absent there.** In the alignment's text,
   a read that spans a site without inserting has `-` in its columns, and a read
   that does not span it has `.`.
@@ -193,7 +205,7 @@ Each insertion site has a bracket in the Highlights strip above the alignment,
 labelled with the size and the reference base it follows, such as
 `+1bp after ctgA:15,163`. The size is the length most of the reads at the site
 insert: HG002's reads have 280 to 287bp of the Alu above, and the bracket over
-its 290 columns is labelled `+283bp`. Each tandem array has a bracket labelled
+its 294 columns is labelled `+283bp`. Each tandem array has a bracket labelled
 with its unit and the reference's copy count, such as
 `(GCG)x21 in the reference`. In a noisy window only the 100 sites carrying the
 most inserted sequence get a bracket. A one-column bracket draws as a triangle,

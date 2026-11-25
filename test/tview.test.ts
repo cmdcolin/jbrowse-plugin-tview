@@ -626,6 +626,42 @@ describe('planHighlights', () => {
     ])
   })
 
+  it('brackets one site where a read anchored its copy a base early', () => {
+    const reference = 'ACGTTGCATCGGATCCTAGAAAGTCGTACGGTTACAGCTA'
+    const copy = 'GGCCGGGCGCGGTGGCTCACGCCTGTAATC'
+    const carriers = ['a', 'b', 'c'].map(name =>
+      feature({
+        name,
+        start: 0,
+        CIGAR: '20M30I20M',
+        seq: `${reference.slice(0, 20)}${copy}${reference.slice(20)}`,
+      }),
+    )
+    // an extra T before the copy, which the aligner took as the copy starting
+    // a base early
+    const early = `${reference.slice(0, 19)}T${copy}${reference.slice(20)}`
+    const args = {
+      features: [
+        ...carriers,
+        feature({ name: 'early', start: 0, CIGAR: '19M30I21M', seq: early }),
+      ],
+      refName: 'ctgA',
+      start: 0,
+      end: reference.length,
+    }
+    const merged = planTviewMsa({ ...args, sequence: reference })
+    expect([...merged.layout.insWidths.keys()]).toEqual([20])
+    expect(planHighlights(merged).map(h => h.label)).toEqual([
+      '+30bp after ctgA:20',
+    ])
+    const row = rows(renderTviewMsa(merged)).find(([name]) => name === 'early')
+    expect(row![1].replaceAll(/[-.]/g, '')).toBe(early)
+
+    // without the reference there is nothing to count a mismatch against
+    const unmerged = planTviewMsa(args)
+    expect([...unmerged.layout.insWidths.keys()].sort()).toEqual([19, 20])
+  })
+
   it('marks only the sites carrying the most inserted sequence', () => {
     const reference = 'ACGT'.repeat(120)
     const noise = Array.from({ length: 150 }, (_, i) =>

@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   buildArrayBlocks,
   extractAllele,
+  mergeInsertionSites,
+  moveInsertion,
   normalizeInsertions,
   reanchorInsertions,
   shiftInsertion,
@@ -329,5 +331,146 @@ describe('normalizeInsertions', () => {
     expect(Object.fromEntries(after.rowByName)).toEqual(
       Object.fromEntries(before.rowByName),
     )
+  })
+})
+
+describe('moveInsertion', () => {
+  const read: ReadLayout = {
+    name: 'a',
+    start: 0,
+    refChars: 'ACGTACGT',
+    insertions: new Map([[4, 'GG']]),
+  }
+
+  it('re-divides the read bases, whatever the reference says', () => {
+    expect(moveInsertion(read, 4, 6, 'GG')).toEqual({
+      seq: 'AC',
+      refChars: 'ACGTGGGT',
+    })
+    expect(moveInsertion(read, 4, 2, 'GG')).toEqual({
+      seq: 'GT',
+      refChars: 'ACGGACGT',
+    })
+  })
+
+  it('declines to pass a position the read has no base at', () => {
+    expect(
+      moveInsertion({ ...read, refChars: 'ACGTA-GT' }, 4, 6, 'GG'),
+    ).toBeUndefined()
+  })
+
+  it('declines a target past either end of the read', () => {
+    expect(moveInsertion(read, 4, 9, 'GG')).toBeUndefined()
+    expect(moveInsertion({ ...read, start: 2 }, 4, 1, 'GG')).toBeUndefined()
+  })
+})
+
+describe('mergeInsertionSites', () => {
+  const REF = 'ACGTTGCATCGGATCCTAGAAAGTCGTACGGTTACAGCTA'
+  const ALU = 'GGCCGGGCGCGGTGGCTCACGCCTGTAATC'
+  const reference = { seq: REF, start: 0 }
+  const carrier = (
+    name: string,
+    insertions: [number, string][],
+    refChars = REF,
+  ): ReadLayout => ({
+    name,
+    start: 0,
+    refChars,
+    insertions: new Map(insertions),
+  })
+  const majority = ['a', 'b', 'c'].map(name => carrier(name, [[20, ALU]]))
+  const merged = (read: ReadLayout, arrays: ReferenceArray[] = []) =>
+    mergeInsertionSites([...majority, read], arrays, reference).at(-1)!
+
+  // the NPHP4 Alu's shape: the read carries an extra base before the copy, so
+  // the aligner anchored the copy one base early, and the base it aligned at
+  // 19 is the copy's last
+  const early = carrier(
+    'early',
+    [[19, `T${ALU.slice(0, -1)}`]],
+    `${REF.slice(0, 19)}${ALU.at(-1)}${REF.slice(20)}`,
+  )
+
+  it('is a case no exact rewrite reaches', () => {
+    expect(
+      shiftInsertion(early, 19, 20, `T${ALU.slice(0, -1)}`),
+    ).toBeUndefined()
+  })
+
+  it('moves a read anchored one base early to the site most reads use', () => {
+    const result = merged(early)
+    expect([...result.insertions]).toEqual([[20, ALU]])
+    expect(result.refChars[19]).toBe('T')
+    expect(spell(result)).toBe(spell(early))
+  })
+
+  it('leaves the reads already at that site as they were', () => {
+    const result = mergeInsertionSites([...majority, early], [], reference)
+    result.slice(0, 3).forEach((read, i) => {
+      expect(read).toBe(majority[i])
+    })
+  })
+
+  it('moves the right of two sites one read each to the left', () => {
+    const left = carrier('left', [[20, ALU]])
+    const right = carrier('right', [[21, `${ALU.slice(1)}A`]])
+    const [a, b] = mergeInsertionSites([right, left], [], reference)
+    expect([...a!.insertions.keys()]).toEqual([20])
+    expect(spell(a!)).toBe(spell(right))
+    expect(b).toBe(left)
+  })
+
+  it('leaves a nearby insertion of a different length at its own site', () => {
+    const short = carrier('short', [[19, `T${ALU.slice(0, 12)}`]])
+    expect(merged(short)).toBe(short)
+  })
+
+  it('leaves a read whose move would cost more than a mismatch or two', () => {
+    // six bases on, where the copy's tail and the flank share nothing
+    const far = carrier('far', [[26, ALU]])
+    expect(merged(far)).toBe(far)
+  })
+
+  it('never drags a 1bp insertion', () => {
+    const errors = ['a', 'b', 'c'].map(name => carrier(name, [[20, 'G']]))
+    const stray = carrier('stray', [[19, 'G']])
+    expect(mergeInsertionSites([...errors, stray], [], reference)[3]).toBe(
+      stray,
+    )
+  })
+
+  it('leaves an insertion an array owns where it is', () => {
+    const array = { start: 10, end: 19, period: 3, unit: 'CAG' }
+    expect(merged(early, [array])).toBe(early)
+  })
+
+  it('moves nothing across an array', () => {
+    const array = { start: 21, end: 23, period: 1, unit: 'A' }
+    const beyond = carrier('beyond', [[24, ALU]])
+    expect(merged(beyond, [array])).toBe(beyond)
+  })
+
+  it('moves nothing across a deletion in the read', () => {
+    const gapped = {
+      ...early,
+      refChars: `${REF.slice(0, 19)}-${REF.slice(20)}`,
+    }
+    expect(merged(gapped)).toBe(gapped)
+  })
+
+  it('moves nothing past another insertion of the same read', () => {
+    const twice = carrier('twice', [
+      [19, `T${ALU.slice(0, -1)}`],
+      [20, 'G'],
+    ])
+    expect(merged(twice)).toBe(twice)
+  })
+
+  it('keeps an insertion in view a base inside the region', () => {
+    const fromTwenty = { seq: REF.slice(20), start: 20 }
+    expect(
+      mergeInsertionSites([...majority, early], [], fromTwenty).at(-1),
+    ).toBe(early)
   })
 })
