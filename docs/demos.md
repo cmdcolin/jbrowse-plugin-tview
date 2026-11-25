@@ -12,7 +12,7 @@ range request and the alignment is built in a worker.
 | ---------------- | ----------------------------- | ----------------------------------------------------------------- | -------------------------------- |
 | NPHP4 Alu, HG002 | chr1:5,934,190..5,934,390     | an Alu insertion in about half the reads, aligned base by base    | [launch][tview-demo-alu]         |
 | NPHP4 Alu        | chr1:5,934,190..5,934,390     | a band per sample: the son and the father have it, the mother not | [launch][tview-demo-alu-trio]    |
-| FMR1             | chrX:146,993,530..146,993,670 | CGG on the X, so two of the three samples carry one allele        | [launch][tview-demo-fmr1]        |
+| FMR1             | chrX:146,993,530..146,993,670 | CGG on the X, so the two males have one allele each               | [launch][tview-demo-fmr1]        |
 | HTT              | chr4:3,076,570..3,076,730     | the CAG tract, with a shoulder either side of one allele          | [launch][tview-demo-htt]         |
 | ATXN3            | chr14:92,537,320..92,537,420  | the locus that reports as four arrays when anchored on insertions | [launch][tview-demo-atxn3]       |
 | ATXN3, HG004     | chr14:92,537,320..92,537,420  | the mother alone, a CTG ladder of two steps                       | [launch][tview-demo-atxn3-hg004] |

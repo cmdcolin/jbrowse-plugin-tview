@@ -45,7 +45,7 @@ function giab(figure) {
 export const REPEAT_FIGURES = [
   {
     name: 'fmr1',
-    blurb: 'CGG on the X, so two of the three samples carry one allele',
+    blurb: 'CGG on the X, so the two males have one allele each',
     out: 'img/repeat-fmr1-trio.png',
     // FMR1 sits on the X, so the two male samples carry one allele and the
     // mother two — a copy count that cannot come out right by accident
