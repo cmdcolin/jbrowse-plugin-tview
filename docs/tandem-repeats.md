@@ -144,6 +144,10 @@ of the VNTR's 25bp unit, entered at offset 6. They are expansions rather than
 chimeric joins or mismappings, which is why the count depends on re-filing them
 under the array.
 
+For genotypes, run a dedicated tandem repeat caller and load its VCF as a track
+in the genome view above the tview, so each call sits over the reads that
+support it.
+
 ## Several samples in one alignment
 
 ![FMR1 CGG in the GIAB trio, rows in a band per sample with the reference band on top](../img/repeat-fmr1-trio.png)
